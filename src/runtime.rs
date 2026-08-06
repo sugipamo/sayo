@@ -1586,6 +1586,7 @@ impl Runtime {
             pending.finish_group_end = finish_group_end;
             let control = TraceControlGroup {
                 control_id: pending.trace_control.unwrap_or(0),
+                anchor_cell: pending.removed_cell,
                 transition: pending.kind.trace_name().into(),
                 result_template: pending.call.result_template.clone(),
                 implementation_source: pending

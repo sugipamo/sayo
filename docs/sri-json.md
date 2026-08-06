@@ -112,6 +112,7 @@ A `group_started` that evaluates control-Relation payload includes an additional
 ```json
 {
   "control_id": 3,
+  "anchor_cell": 12,
   "transition": "tick",
   "result_template": "EachEmit",
   "implementation_source": "%0 (%0 %1)",
@@ -123,7 +124,8 @@ A `group_started` that evaluates control-Relation payload includes an additional
 
 `control_id` is unique within one Trace and is shared by every child Group that evaluates a slot for one control
 execution. This lets the SVI Builder recognize that child Groups build payload positions of one target Template rather
-than independent state changes. Ordinary Groups omit `control`.
+than independent state changes. `anchor_cell` identifies the parent Cell whose state transition opened the control
+evaluation, allowing SVI Rows to remain attached to its visible position. Ordinary Groups omit `control`.
 
 `inserted` is ordered, and every element has this form:
 

@@ -143,7 +143,7 @@ test("Playground runs, replays, stops, edits a world, and shares it", async ({ p
 test("Playground opens with the composite showcase and plays it once", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("#source-editor"))
-    .toHaveValue("for (add (fold add 0 1 2 3)) 4 5 6 7");
+    .toHaveValue("for (add (fold add 0 1 2 3)) 4 5 6 7 4 5 6 7 4 5 6 7 4 5 6 7");
   await expect(page.locator("#status-pill")).toHaveText("Normal");
   await expect(page.locator("#play-button")).toHaveText("Ⅱ", { timeout: 5_000 });
   await expect(page.locator("#speed-select")).toHaveValue("150");
@@ -204,6 +204,36 @@ test("Reduction scrolling follows the deepest active row and offscreen rewrites"
   await applied.evaluate((item) => item.click());
   await expect.poll(() => page.locator("#stage").evaluate((stage) => stage.scrollLeft))
     .toBeGreaterThan(0);
+});
+
+test("Control work rows align beneath their offscreen parent action", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.goto("/?autoplay=0");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+
+  const controls = page.locator("#event-list li").filter({
+    has: page.locator(".event-kind", { hasText: /^control_started$/ }),
+  });
+  await controls.last().evaluate((item) => item.click());
+  await page.waitForTimeout(400);
+
+  const position = await page.locator("#stage").evaluate((stage) => {
+    const child = stage.querySelector("#term-stage > .nested-child-row");
+    const anchorId = child.dataset.anchorViewId;
+    const anchor = stage.querySelector(`.term-card[data-key="${CSS.escape(anchorId)}"]:not(.leaving)`);
+    const viewport = stage.getBoundingClientRect();
+    const childRect = child.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    return {
+      difference: Math.abs(childRect.left - anchorRect.left),
+      anchorLeft: anchorRect.left,
+      viewportLeft: viewport.left,
+      viewportRight: viewport.right,
+    };
+  });
+  expect(position.difference).toBeLessThanOrEqual(1);
+  expect(position.anchorLeft).toBeGreaterThanOrEqual(position.viewportLeft);
+  expect(position.anchorLeft).toBeLessThan(position.viewportRight);
 });
 
 test("Playground respects reduced motion when considering initial autoplay", async ({ page }) => {

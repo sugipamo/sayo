@@ -52,6 +52,8 @@ pub struct TraceRelation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TraceControlGroup {
     pub control_id: TraceControlId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor_cell: Option<TraceCellId>,
     pub transition: String,
     pub result_template: String,
     pub implementation_source: String,

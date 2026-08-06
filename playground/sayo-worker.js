@@ -1,6 +1,6 @@
-import init, { evaluateJson } from "./pkg/sayo.js?v=20260806.46";
+import init, { evaluateJson } from "./pkg/sayo.js?v=20260806.48";
 
-const initialized = init(new URL("./pkg/sayo_bg.wasm?v=20260806.46", import.meta.url));
+const initialized = init(new URL("./pkg/sayo_bg.wasm?v=20260806.48", import.meta.url));
 
 self.onmessage = async (event) => {
   const envelope = event.data;

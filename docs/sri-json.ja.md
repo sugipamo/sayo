@@ -112,6 +112,7 @@ Relationは次の形で埋め込む。
 ```json
 {
   "control_id": 3,
+  "anchor_cell": 12,
   "transition": "tick",
   "result_template": "EachEmit",
   "implementation_source": "%0 (%0 %1)",
@@ -124,7 +125,8 @@ Relationは次の形で埋め込む。
 `control_id`は一回のTrace内で一意であり、一つの制御実行に属する全slotの子Groupで共有される。
 
 これによりSVI Builderは、子Groupを親状態から独立した状態変化と誤認せず、どの遷移先Templateの
-何番目のpayloadを組み立てているかを表示できる。通常のGroupでは`control`を省略する。
+何番目のpayloadを組み立てているかを表示できる。`anchor_cell`は制御評価を開始した親Cellを示し、SVI Rowを
+画面上の遷移元へ接続できるようにする。通常のGroupでは`control`を省略する。
 
 `inserted`は順序付き配列で、各要素は次の形を持つ。
 

@@ -55,6 +55,8 @@ pub struct SviRow {
     pub row_id: String,
     pub role: SviRowRole,
     pub separator: SviRowSeparator,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor_view_id: Option<String>,
     pub items: Vec<SviViewItem>,
 }
 
@@ -552,9 +554,26 @@ fn build_scene(
         return SviScene { rows: Vec::new() };
     };
     let plan = ScenePlan::for_group(group_id.unwrap_or(0), group, state, control_detail);
-    SviScene {
-        rows: plan.render(frame_id, state),
+    let mut rows = plan.render(frame_id, state);
+    if let Some(anchor_view_id) = control_anchor_view_id(frame_id, group, state) {
+        for row in &mut rows {
+            if row.role != SviRowRole::Context {
+                row.anchor_view_id = Some(anchor_view_id.clone());
+            }
+        }
     }
+    SviScene { rows }
+}
+
+fn control_anchor_view_id(
+    frame_id: u64,
+    group: &ReplayGroup,
+    state: &ReplayState,
+) -> Option<String> {
+    let parent_id = group.parent?;
+    let anchor_cell = group.control.as_ref()?.anchor_cell?;
+    state.groups.get(&parent_id)?;
+    Some(format!("f{frame_id}-context-{parent_id}-c{anchor_cell}"))
 }
 
 impl<'a> ScenePlan<'a> {
@@ -661,6 +680,7 @@ impl SceneLayer<'_> {
                 row_id,
                 role: SviRowRole::Template,
                 separator: SviRowSeparator::Space,
+                anchor_view_id: None,
                 items: vec![control_item(frame_id, control, state, assembled)],
             },
             Self::ControlOverview {
@@ -672,12 +692,14 @@ impl SceneLayer<'_> {
                 row_id,
                 role: SviRowRole::Reduction,
                 separator: SviRowSeparator::Comma,
+                anchor_view_id: None,
             },
             Self::ControlDetail { row_id, cells } => SviRow {
                 items: items_from_cells(frame_id, &row_id, cells),
                 row_id,
                 role: SviRowRole::Reduction,
                 separator: SviRowSeparator::Space,
+                anchor_view_id: None,
             },
         }
     }
@@ -689,6 +711,7 @@ fn row_from_cells(frame_id: u64, row_id: String, role: SviRowRole, cells: &[Repl
         row_id,
         role,
         separator: SviRowSeparator::Space,
+        anchor_view_id: None,
         items,
     }
 }

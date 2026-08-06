@@ -2,7 +2,7 @@ import { renderTermSource, termKind } from "./term-view.js?v=20260806.47";
 import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.47";
 
 const $ = (selector) => document.querySelector(selector);
-const ASSET_VERSION = "20260806.47";
+const ASSET_VERSION = "20260806.48";
 const STAGE_TIMING = { leaving: 520 };
 const PLAYBACK_SETTLE_MARGIN = 30;
 const AUTOPLAY_DELAY = 650;
@@ -13,7 +13,7 @@ const samples = {
   showcase: {
     label: "Showcase · nested motion",
     entry: "main.sayo",
-    files: { "main.sayo": "for (add (fold add 0 1 2 3)) 4 5 6 7" },
+    files: { "main.sayo": "for (add (fold add 0 1 2 3)) 4 5 6 7 4 5 6 7 4 5 6 7 4 5 6 7" },
     directories: [],
   },
   arithmetic: {
@@ -410,6 +410,7 @@ function renderStage(frame, { animate, motionBudget }) {
   retireCards(stage, oldCards, nextKeys, nestedHandoffSources(changes, nextKeys), animate);
   placeEntries(stage, sceneRows, entries, oldCards, frame, focusedViews, nested, animate);
   removeEmptyNestedRows(stage);
+  alignSceneRows(stage);
   animateLayout(stage, oldRects, animate);
 
   if (animate) nextPaint(() => animateRewrite(frame, stage, oldFragments, { maxDuration: motionBudget }));
@@ -453,6 +454,7 @@ function prepareSceneRows(stage, rows, nested) {
     row.role === "context" ? "nested-context-row" : "nested-child-row",
     row.row_id,
     row.separator,
+    row.anchor_view_id,
   )]));
 }
 
@@ -548,7 +550,7 @@ function rekeyPreservedCards(stage, changes, nextKeys) {
   }
 }
 
-function nestedRow(stage, className, rowId, separator) {
+function nestedRow(stage, className, rowId, separator, anchorViewId) {
   let row = [...stage.querySelectorAll(NESTED_ROW_SELECTOR)]
     .find((candidate) => candidate.dataset.rowId === rowId);
   if (!row) {
@@ -558,8 +560,20 @@ function nestedRow(stage, className, rowId, separator) {
   row.className = className;
   row.dataset.rowId = rowId;
   row.dataset.separator = separator ?? "space";
+  if (anchorViewId) row.dataset.anchorViewId = anchorViewId;
+  else delete row.dataset.anchorViewId;
   stage.append(row);
   return row;
+}
+
+function alignSceneRows(stage) {
+  for (const row of stage.querySelectorAll(NESTED_ROW_SELECTOR)) {
+    const anchorViewId = row.dataset.anchorViewId;
+    const anchor = anchorViewId
+      ? stage.querySelector(`.term-card[data-key="${CSS.escape(anchorViewId)}"]:not(.leaving)`)
+      : null;
+    row.style.marginLeft = anchor ? `${layoutBox(anchor, stage).left}px` : "0px";
+  }
 }
 
 function removeEmptyNestedRows(stage) {
@@ -570,7 +584,11 @@ function removeEmptyNestedRows(stage) {
 }
 
 function followActiveTerms(viewport, stage, trackingViews) {
-  const cards = trackingViews
+  const anchorViews = [...stage.querySelectorAll(NESTED_ROW_SELECTOR)]
+    .map((row) => row.dataset.anchorViewId)
+    .filter(Boolean);
+  const activeViews = trackingViews.length ? trackingViews : anchorViews.slice(-1);
+  const cards = activeViews
     .map((viewId) => stage.querySelector(`.term-card[data-key="${CSS.escape(viewId)}"]:not(.leaving)`))
     .filter(Boolean);
 

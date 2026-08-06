@@ -55,7 +55,7 @@ length scales with visible sequence changes. A Trap Frame is retained even if it
 {
   "rows": [
     { "row_id": "context-3", "role": "context", "separator": "space", "items": [] },
-    { "row_id": "reduction-4", "role": "reduction", "separator": "space", "items": [] }
+    { "row_id": "reduction-4", "role": "reduction", "separator": "space", "anchor_view_id": "f8-context-3-c12", "items": [] }
   ]
 }
 ```
@@ -72,6 +72,9 @@ caller, followed by the active `reduction` Row. This keeps the originating expre
 Row order is top-to-bottom display order. A Visualizer does not infer Rows from Group parentage. `separator` is either
 `space` or `comma`: ordinary Sayo sequences and Group expansion use `space`; state-payload overviews use `comma`. The
 Visualizer does not infer punctuation from Row names or roles.
+
+`anchor_view_id` is optional. When present, the Row starts beneath that item in an ancestor Row. SayoVM uses it to keep
+Template-control work visually attached to the state Term that initiated the transition, even in a long sequence.
 
 Template-control evaluation can show caller `context`, control Template, and current payload in separate Rows. Multiple
 Rows may share the `reduction` role and must not be flattened into one line. During slot evaluation, the Template Row

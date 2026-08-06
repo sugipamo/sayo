@@ -56,7 +56,7 @@ Trapは停止を表示する必要があるため、Sceneが同一でもFrameと
 {
   "rows": [
     { "row_id": "context-3", "role": "context", "separator": "space", "items": [] },
-    { "row_id": "reduction-4", "role": "reduction", "separator": "space", "items": [] }
+    { "row_id": "reduction-4", "role": "reduction", "separator": "space", "anchor_view_id": "f8-context-3-c12", "items": [] }
   ]
 }
 ```
@@ -73,6 +73,8 @@ version 1の`role`は次の四つとする。
 Rowの順序が画面上の上から下の順序である。VisualizerはGroup親子関係からRowを推測しない。
 `separator`は`space`または`comma`である。通常のSayo列とGroup展開は`space`、State payloadを並べる
 overviewは`comma`を使う。VisualizerはRow名やroleから区切り記号を推測しない。
+`anchor_view_id`は任意である。指定されたRowは祖先Row内の対象itemの真下から開始する。SayoVMはこれにより、
+長い列でもTemplate制御の作業Rowを遷移元の状態Termへ視覚的に接続する。
 Template制御の内部評価では、`context`、制御Template、現在評価中のpayloadを別々のRowとして表せる。
 同じ`reduction` roleを持つRowが複数存在してよく、Visualizerはそれらを一行へ平坦化しない。
 制御TemplateのRowは各slotの内部評価中には書き換えず、placeholderを含む元の形を保持する。値の変化は
