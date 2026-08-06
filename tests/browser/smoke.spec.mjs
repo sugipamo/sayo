@@ -38,6 +38,7 @@ test("Playground runs, replays, stops, edits a world, and shares it", async ({ p
   await expect(page.locator("#term-stage")).toContainText("(add 9)");
   await expect(page.locator("#term-stage")).toContainText("1");
   await expect(page.locator("#timeline")).toHaveValue("0");
+  const initialStageHeight = await page.locator("#stage").evaluate((stage) => stage.getBoundingClientRect().height);
   const event = (kind) => page.locator("#event-list li").filter({
     has: page.locator(".event-kind", { hasText: new RegExp(`^${kind}$`) }),
   });
@@ -48,6 +49,10 @@ test("Playground runs, replays, stops, edits a world, and shares it", async ({ p
   await expect(page.locator(".nested-context")).toHaveCount(3);
   await expect(page.locator(".nested-context").nth(1)).toHaveText("2");
   await expect(page.locator(".nested-context").nth(2)).toHaveText("3");
+  expect(await page.locator("#stage").evaluate((stage) => stage.getBoundingClientRect().height))
+    .toBe(initialStageHeight);
+  expect(await page.locator("#stage").evaluate((stage) => getComputedStyle(stage).overflowY))
+    .toBe("auto");
   await page.setViewportSize({ width: 778, height: 720 });
   const contextGaps = await page.locator(".nested-context").evaluateAll((cards) => cards.slice(1).map((card, index) => {
     const previous = cards[index].getBoundingClientRect();
