@@ -1,7 +1,5 @@
 # Contributing to Sayo
 
-English | [日本語](CONTRIBUTING.ja.md)
-
 Issues, design proposals, implementations, and documentation improvements are welcome.
 
 ## Before you start

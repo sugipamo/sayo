@@ -1,7 +1,5 @@
 # Security Policy
 
-English | [日本語](SECURITY.ja.md)
-
 ## Supported versions
 
 Sayo is pre-1.0. Security fixes target the latest development version.

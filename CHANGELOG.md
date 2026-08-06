@@ -1,7 +1,5 @@
 # Changelog
 
-English | [日本語](CHANGELOG.ja.md)
-
 User-visible changes to Sayo are recorded here.
 
 ## Unreleased

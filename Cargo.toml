@@ -24,13 +24,9 @@ include = [
     "/README.md",
     "/README.ja.md",
     "/CHANGELOG.md",
-    "/CHANGELOG.ja.md",
     "/CONTRIBUTING.md",
-    "/CONTRIBUTING.ja.md",
     "/CODE_OF_CONDUCT.md",
-    "/CODE_OF_CONDUCT.ja.md",
     "/SECURITY.md",
-    "/SECURITY.ja.md",
     "/docs/**",
     "/LICENSE",
 ]

@@ -1,7 +1,5 @@
 # Code of Conduct
 
-English | [日本語](CODE_OF_CONDUCT.ja.md)
-
 The Sayo community expects respectful collaboration regardless of experience, position, or background.
 
 ## Expected behavior
