@@ -61,6 +61,8 @@ Sayo 0.1.0はcrates.ioではなく、GitHubとPlaygroundを通じて配布しま
 
 ## 試す
 
+[WebAssembly Playground](https://sayo-lang.pages.dev/)では、Sayoの評価遷移をアニメーションで今すぐ試せます。
+
 最新のstable Rust toolchainを使い、このリポジトリからビルドして実行します。
 
 ```sh
@@ -76,8 +78,6 @@ cargo run -- --world examples/native_arithmetic/world add 5 3
 ```sh
 cargo install --git https://github.com/sugipamo/sayo
 ```
-
-公開Playgroundは後日の公開作業でCloudflare Pagesへ配置します。
 
 ## ドキュメント
 

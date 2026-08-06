@@ -62,6 +62,8 @@ deferred. Sayo 0.1.0 is distributed through GitHub and the Playground rather tha
 
 ## Try it
 
+Try Sayo immediately in the [WebAssembly Playground](https://sayo-lang.pages.dev/), where each reduction is animated.
+
 Build and run from this repository with the latest stable Rust toolchain:
 
 ```sh
@@ -77,8 +79,6 @@ After the repository becomes public, the command can also be installed directly 
 ```sh
 cargo install --git https://github.com/sugipamo/sayo
 ```
-
-The public Playground will be hosted on Cloudflare Pages in a later publication step.
 
 ## Documentation
 
