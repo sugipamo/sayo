@@ -1,11 +1,12 @@
 import { renderTermSource, termKind } from "./term-view.js?v=20260806.47";
-import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.47";
+import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.50";
 
 const $ = (selector) => document.querySelector(selector);
 const ASSET_VERSION = "20260806.48";
 const STAGE_TIMING = { leaving: 520 };
 const PLAYBACK_SETTLE_MARGIN = 30;
 const AUTOPLAY_DELAY = 650;
+const FOLLOW_EDGE_INSET = 0.2;
 const NESTED_ROW_SELECTOR = ":scope > .nested-context-row, :scope > .nested-child-row";
 const ACTIVE_ROW_SELECTOR = ".nested-context-row, .nested-child-row";
 
@@ -413,7 +414,10 @@ function renderStage(frame, { animate, motionBudget }) {
   alignSceneRows(stage);
   animateLayout(stage, oldRects, animate);
 
-  if (animate) nextPaint(() => animateRewrite(frame, stage, oldFragments, { maxDuration: motionBudget }));
+  // Start rewrite motion in the same render turn. Waiting for two paints left
+  // retired work-row cards visible after their row had already disappeared,
+  // which looked like a one-frame duplicate in the top row during playback.
+  if (animate) animateRewrite(frame, stage, oldFragments, { maxDuration: motionBudget });
   else requestAnimationFrame(() => stage.classList.remove("instant"));
   nextPaint(() => followActiveTerms(stageViewport, stage, trackingViews));
 }
@@ -599,23 +603,31 @@ function followActiveTerms(viewport, stage, trackingViews) {
     ? Math.max(0, rowBox.bottom - viewport.clientHeight + 48)
     : 0;
 
-  let horizontalTarget = viewport.scrollLeft;
-  if (cards.length && viewport.scrollWidth > viewport.clientWidth) {
-    const boxes = cards.map((card) => layoutBox(card, viewport));
-    const targetLeft = Math.min(...boxes.map((box) => box.left));
-    const targetRight = Math.max(...boxes.map((box) => box.right));
-    const safeLeft = viewport.scrollLeft + viewport.clientWidth * 0.2;
-    const safeRight = viewport.scrollLeft + viewport.clientWidth * 0.8;
-    if (targetLeft < safeLeft || targetRight > safeRight) {
-      horizontalTarget = (targetLeft + targetRight - viewport.clientWidth) / 2;
-    }
-  }
+  const horizontalTarget = horizontalFollowTarget(viewport, cards);
 
   viewport.scrollTo({
-    left: Math.max(0, Math.min(horizontalTarget, viewport.scrollWidth - viewport.clientWidth)),
-    top: Math.max(0, Math.min(verticalTarget, viewport.scrollHeight - viewport.clientHeight)),
+    left: clampScroll(horizontalTarget, viewport.scrollWidth, viewport.clientWidth),
+    top: clampScroll(verticalTarget, viewport.scrollHeight, viewport.clientHeight),
     behavior: "auto",
   });
+}
+
+function horizontalFollowTarget(viewport, cards) {
+  if (!cards.length || viewport.scrollWidth <= viewport.clientWidth) return viewport.scrollLeft;
+  const boxes = cards.map((card) => layoutBox(card, viewport));
+  const targetLeft = Math.min(...boxes.map((box) => box.left));
+  const targetRight = Math.max(...boxes.map((box) => box.right));
+  const visibleLeft = viewport.scrollLeft;
+  const visibleRight = visibleLeft + viewport.clientWidth;
+  if (targetLeft < visibleLeft) return targetLeft - viewport.clientWidth * FOLLOW_EDGE_INSET;
+  if (targetRight > visibleRight) {
+    return targetRight - viewport.clientWidth * (1 - FOLLOW_EDGE_INSET);
+  }
+  return viewport.scrollLeft;
+}
+
+function clampScroll(target, scrollSize, viewportSize) {
+  return Math.max(0, Math.min(target, scrollSize - viewportSize));
 }
 
 function layoutBox(element, ancestor) {

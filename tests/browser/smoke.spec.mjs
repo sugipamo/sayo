@@ -211,6 +211,14 @@ test("Reduction scrolling follows the deepest active row and offscreen rewrites"
   await applied.evaluate((item) => item.click());
   await expect.poll(() => page.locator("#stage").evaluate((stage) => stage.scrollLeft))
     .toBeGreaterThan(0);
+
+  const manuallyAdjusted = await page.locator("#stage").evaluate((stage) => {
+    stage.scrollLeft += 5;
+    return stage.scrollLeft;
+  });
+  await applied.evaluate((item) => item.click());
+  await page.waitForTimeout(50);
+  expect(await page.locator("#stage").evaluate((stage) => stage.scrollLeft)).toBe(manuallyAdjusted);
 });
 
 test("Control work rows align beneath their offscreen parent action", async ({ page }) => {
@@ -346,12 +354,14 @@ test("Continuous playback settles each animation inside its frame budget", async
 
   const observedDuration = page.evaluate(() => new Promise((resolve) => {
     let maximum = 0;
+    let detachedGhosts = 0;
     const sample = setInterval(() => {
       const stage = document.querySelector("#term-stage");
+      const ghosts = [...document.querySelectorAll(".morph-ghost")];
+      detachedGhosts += ghosts.filter((ghost) => ghost.parentElement !== stage).length;
       const animations = [
         ...stage.getAnimations({ subtree: true }),
-        ...[...document.querySelectorAll(".morph-ghost")]
-          .flatMap((ghost) => ghost.getAnimations()),
+        ...ghosts.flatMap((ghost) => ghost.getAnimations()),
       ];
       for (const animation of animations) {
         const duration = animation.effect?.getTiming().duration;
@@ -360,12 +370,14 @@ test("Continuous playback settles each animation inside its frame budget", async
     }, 4);
     setTimeout(() => {
       clearInterval(sample);
-      resolve(maximum);
+      resolve({ maximum, detachedGhosts });
     }, 300);
   }));
 
   await page.locator("#play-button").click();
-  expect(await observedDuration).toBeLessThanOrEqual(24);
+  const observation = await observedDuration;
+  expect(observation.maximum).toBeLessThanOrEqual(24);
+  expect(observation.detachedGhosts).toBe(0);
   if (await page.locator("#play-button").textContent() === "Ⅱ") {
     await page.locator("#play-button").click();
   }

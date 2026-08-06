@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Write Sayo, run it in the browser, and watch terms reduce." />
     <title>Sayo Playground</title>
-    <link rel="stylesheet" href="./styles.css?v=20260806.49" />
+    <link rel="stylesheet" href="./styles.css?v=20260806.55" />
   </head>
   <body>
     <header class="topbar">
@@ -66,7 +66,9 @@
             <div class="orbit"><span></span><span></span><span></span></div>
             <p>The motion of evaluation will appear here.</p>
           </div>
+          <div class="stage-scroll-gutter" aria-hidden="true"></div>
           <div id="term-stage" class="term-stage" hidden></div>
+          <div class="stage-scroll-gutter" aria-hidden="true"></div>
         </div>
         <div class="timeline-row">
           <input id="timeline" type="range" min="0" max="0" value="0" aria-label="Reduction timeline" />
@@ -127,6 +129,6 @@
     </dialog>
     <input id="file-input" type="file" accept="application/json,.json" hidden />
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=20260806.48"></script>
+    <script type="module" src="./app.js?v=20260806.55"></script>
   </body>
 </html>

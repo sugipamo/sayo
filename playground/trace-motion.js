@@ -1,4 +1,5 @@
 const MOTION = {
+  arrival: 400,
   carried: 420,
   fusion: 430,
 };
@@ -31,7 +32,7 @@ export function snapshotFragments(stage) {
 export function resetMotion(stage) {
   stage.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
   stage.querySelectorAll(".morph-target").forEach((target) => target.classList.remove("morph-target"));
-  document.querySelectorAll(".morph-ghost").forEach((ghost) => {
+  stage.querySelectorAll(".morph-ghost").forEach((ghost) => {
     ghost.getAnimations().forEach((animation) => animation.cancel());
     ghost.remove();
   });
@@ -40,7 +41,7 @@ export function resetMotion(stage) {
 export function animateRewrite(frame, stage, oldFragments, { maxDuration = Infinity } = {}) {
   if (!MOTION_CAUSES.has(frame.cause.kind)) return;
   const motion = transitionContext(frame, stage);
-  animateArrival(motion.destinationCards, motionDuration(400, maxDuration));
+  animateArrival(motion.destinationCards, motionDuration(MOTION.arrival, maxDuration));
 
   if (shouldFuse(frame, motion)) {
     animateFusion(motion, motionDuration(MOTION.fusion, maxDuration));
@@ -114,21 +115,26 @@ function animatePreservedFragments(changes, oldFragments, stage, duration) {
       if (!target) return;
       const targetRect = settledTargetRect(target);
       if (samePosition(origin.rect, targetRect)) return;
-      animateCarriedFragment(origin, target, targetRect, duration);
+      animateCarriedFragment(origin, target, targetRect, stage, duration);
     });
   }
 }
 
-function animateCarriedFragment(origin, target, targetRect, duration) {
+function animateCarriedFragment(origin, target, targetRect, stage, duration) {
   const ghost = document.createElement("span");
   ghost.className = "morph-ghost";
   ghost.textContent = origin.text;
   ghost.dataset.viewId = origin.viewId;
+  const originInStage = relativePosition(origin.rect, stage.getBoundingClientRect());
   Object.assign(ghost.style, {
-    left: `${origin.rect.left}px`, top: `${origin.rect.top}px`,
+    left: `${originInStage.left}px`,
+    top: `${originInStage.top}px`,
     width: `${origin.rect.width}px`, height: `${origin.rect.height}px`, color: origin.color,
   });
-  document.body.append(ghost);
+  // Keep carried fragments in the same coordinate system as the terms. The
+  // Reduction viewport may auto-scroll during playback; a body-fixed ghost
+  // would stay behind and briefly appear over an unrelated row.
+  stage.append(ghost);
   target.classList.add("morph-target");
   const animation = ghost.animate([
     { transform: "translate(0, 0)", opacity: 1 },
@@ -167,6 +173,9 @@ function settledTargetRect(target) {
 }
 
 function unique(items) { return [...new Set(items)]; }
+function relativePosition(rect, ancestorRect) {
+  return { left: rect.left - ancestorRect.left, top: rect.top - ancestorRect.top };
+}
 function motionDuration(naturalDuration, maxDuration) { return Math.min(naturalDuration, maxDuration); }
 function samePosition(left, right) { return Math.abs(left.left - right.left) < 2 && Math.abs(left.top - right.top) < 2; }
 function centerX(rect) { return rect.left + rect.width / 2; }
