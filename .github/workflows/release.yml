@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+      - id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "sayo-lang") | .version')"
+          test "$RELEASE_TAG" = "v$version"
+          git tag --points-at HEAD --list "$RELEASE_TAG" | grep -Fx "$RELEASE_TAG"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            archive: tar
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - run: cargo build --locked --release --target ${{ matrix.target }}
+      - name: Package Unix binary
+        if: matrix.archive == 'tar'
+        shell: bash
+        run: ./scripts/package-release.sh "${{ matrix.target }}" "${{ needs.validate.outputs.version }}"
+      - name: Package Windows binary
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $name = "sayo-${{ needs.validate.outputs.version }}-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force "dist/$name" | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/sayo.exe" "dist/$name/"
+          Copy-Item README.md, LICENSE "dist/$name/"
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sayo-${{ matrix.target }}
+          path: dist/sayo-*.${{ matrix.archive == 'zip' && 'zip' || 'tar.gz' }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create checksums
+        shell: bash
+        run: (cd dist && sha256sum sayo-*) > dist/SHA256SUMS
+      - name: Publish release and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --verify-tag \
+              --generate-notes \
+              --title "Sayo ${{ needs.validate.outputs.version }}"
+          fi

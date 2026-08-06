@@ -5,6 +5,11 @@ English | [日本語](getting-started.ja.md)
 This guide covers building SayoVM, running programs, creating a minimal World, using the browser Playground locally, and
 running the test suites. For exact language semantics, see the [Language Specification](language-spec.md).
 
+## Prebuilt CLI
+
+Download the archive for your platform from [GitHub Releases](https://github.com/sugipamo/sayo/releases), extract it,
+and place the `sayo` executable somewhere on `PATH`. Verify the archive against the release's `SHA256SUMS` before use.
+
 ## Requirements
 
 Sayo supports the latest stable Rust toolchain and does not declare a fixed MSRV.

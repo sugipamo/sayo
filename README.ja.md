@@ -63,6 +63,10 @@ Sayo 0.1.0はcrates.ioではなく、GitHubとPlaygroundを通じて配布しま
 
 [WebAssembly Playground](https://sayo-lang.pages.dev/)では、Sayoの評価遷移をアニメーションで今すぐ試せます。
 
+Linux、macOS、Windows向けのビルド済み`sayo` CLIは
+[GitHub Releases](https://github.com/sugipamo/sayo/releases)から取得できます。各releaseには検証用の
+`SHA256SUMS`が含まれます。
+
 最新のstable Rust toolchainを使い、このリポジトリからビルドして実行します。
 
 ```sh

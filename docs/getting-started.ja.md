@@ -5,6 +5,11 @@
 このガイドでは、SayoVMのビルド、プログラムの実行、最小Worldの構成、ブラウザPlaygroundのローカル利用、
 テスト方法を説明します。厳密な意味論は[Language Specification](language-spec.ja.md)を参照してください。
 
+## ビルド済みCLI
+
+[GitHub Releases](https://github.com/sugipamo/sayo/releases)からplatformに対応するarchiveを取得して展開し、
+`sayo`実行ファイルを`PATH`上へ配置します。使用前にreleaseの`SHA256SUMS`でarchiveを検証してください。
+
 ## 必要な環境
 
 Sayoは最新のstable Rust toolchainを対象とし、固定MSRVは定めていません。

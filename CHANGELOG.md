@@ -2,7 +2,7 @@
 
 User-visible changes to Sayo are recorded here.
 
-## Unreleased
+## 0.1.0 - 2026-08-06
 
 ### Added
 

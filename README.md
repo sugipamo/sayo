@@ -64,6 +64,9 @@ deferred. Sayo 0.1.0 is distributed through GitHub and the Playground rather tha
 
 Try Sayo immediately in the [WebAssembly Playground](https://sayo-lang.pages.dev/), where each reduction is animated.
 
+Prebuilt `sayo` CLI archives for Linux, macOS, and Windows are available from
+[GitHub Releases](https://github.com/sugipamo/sayo/releases). Each release includes `SHA256SUMS` for verification.
+
 Build and run from this repository with the latest stable Rust toolchain:
 
 ```sh
