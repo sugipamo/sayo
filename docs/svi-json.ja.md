@@ -64,10 +64,12 @@ Trapは停止を表示する必要があるため、Sceneが同一でもFrameと
 version 1の`role`は次の四つとする。
 
 - `main`: 通常の評価列
-- `context`: 子Group評価中に保持する呼び出し元の列
+- `context`: 子Group評価中に保持する祖先の列
 - `template`: 内部評価中に固定表示する制御Template
 - `reduction`: 現在評価している子Groupまたは制御payloadの列
 
+ネストしたGroupの評価では、初期の外側列から直接の呼び出し元まで、すべての祖先`context` Rowを順番に置き、
+最後に現在の`reduction` Rowを置く。これにより評価が内側へ進んでも起点となる式を表示し続ける。
 Rowの順序が画面上の上から下の順序である。VisualizerはGroup親子関係からRowを推測しない。
 `separator`は`space`または`comma`である。通常のSayo列とGroup展開は`space`、State payloadを並べる
 overviewは`comma`を使う。VisualizerはRow名やroleから区切り記号を推測しない。

@@ -160,6 +160,21 @@ test("Playground opens with the composite showcase and plays it once", async ({ 
   await page.locator("#play-button").click();
 });
 
+test("Nested Groups retain every outer expression as a separate row", async ({ page }) => {
+  await page.goto("/?autoplay=0");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  await page.locator("#event-list li").nth(2).evaluate((item) => item.click());
+
+  const rows = page.locator("#term-stage > .nested-context-row, #term-stage > .nested-child-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("for");
+  await expect(rows.nth(0)).toContainText("4");
+  await expect(rows.nth(1)).toContainText("add");
+  await expect(rows.nth(1)).toContainText("fold");
+  await expect(rows.nth(2)).toContainText("fold");
+  await expect(rows.nth(2)).toContainText("3");
+});
+
 test("Playground respects reduced motion when considering initial autoplay", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");

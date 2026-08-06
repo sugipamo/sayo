@@ -565,7 +565,7 @@ impl<'a> ScenePlan<'a> {
         control_detail: ControlDetail,
     ) -> Self {
         let mut layers = Vec::new();
-        Self::push_parent_context(&mut layers, group, state);
+        Self::push_parent_contexts(&mut layers, group, state);
         if let Some(control) = &group.control {
             Self::push_control_layers(&mut layers, group_id, group, control, control_detail);
         } else {
@@ -583,22 +583,31 @@ impl<'a> ScenePlan<'a> {
         Self { layers }
     }
 
-    fn push_parent_context(
+    fn push_parent_contexts(
         layers: &mut Vec<SceneLayer<'a>>,
         group: &'a ReplayGroup,
         state: &'a ReplayState,
     ) {
-        let Some(parent_id) = group.parent else {
-            return;
-        };
-        let Some(parent) = state.groups.get(&parent_id) else {
-            return;
-        };
-        layers.push(SceneLayer::Cells {
-            row_id: format!("context-{parent_id}"),
-            role: SviRowRole::Context,
-            cells: &parent.cells,
-        });
+        let mut ancestors = Vec::new();
+        let mut next = group.parent;
+        let mut visited = HashSet::new();
+        while let Some(parent_id) = next {
+            if !visited.insert(parent_id) {
+                break;
+            }
+            let Some(parent) = state.groups.get(&parent_id) else {
+                break;
+            };
+            ancestors.push((parent_id, parent));
+            next = parent.parent;
+        }
+        for (parent_id, parent) in ancestors.into_iter().rev() {
+            layers.push(SceneLayer::Cells {
+                row_id: format!("context-{parent_id}"),
+                role: SviRowRole::Context,
+                cells: &parent.cells,
+            });
+        }
     }
 
     fn push_control_layers(
@@ -1271,5 +1280,41 @@ mod tests {
             "Plus{5}"
         );
         assert!(!svi.frames[1].changes.is_empty());
+    }
+
+    #[test]
+    fn preserves_the_complete_group_context_stack() {
+        let trace = SayoTrace::from_events_for_test(vec![
+            TraceEvent::GroupStarted {
+                group: 0,
+                parent: None,
+                cells: vec![0, 1, 2],
+                sources: vec!["for".into(), "(add (fold add 0 1))".into(), "4".into()],
+                control: None,
+            },
+            TraceEvent::GroupStarted {
+                group: 1,
+                parent: Some(0),
+                cells: vec![3, 4],
+                sources: vec!["add".into(), "(fold add 0 1)".into()],
+                control: None,
+            },
+            TraceEvent::GroupStarted {
+                group: 2,
+                parent: Some(1),
+                cells: vec![5, 6, 7, 8],
+                sources: vec!["fold".into(), "add".into(), "0".into(), "1".into()],
+                control: None,
+            },
+        ]);
+        let svi = SviDocument::build(&trace, "normal", Vec::new());
+        let rows = &svi.frames[2].scene.rows;
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].role, SviRowRole::Context);
+        assert_eq!(rows[1].role, SviRowRole::Context);
+        assert_eq!(rows[2].role, SviRowRole::Reduction);
+        assert_eq!(rows[0].items[0].term.source(), "for");
+        assert_eq!(rows[1].items[0].term.source(), "add");
+        assert_eq!(rows[2].items[0].term.source(), "fold");
     }
 }

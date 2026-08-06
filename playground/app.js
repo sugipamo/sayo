@@ -1,8 +1,8 @@
-import { renderTermSource, termKind } from "./term-view.js?v=20260806.45";
-import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.45";
+import { renderTermSource, termKind } from "./term-view.js?v=20260806.46";
+import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.46";
 
 const $ = (selector) => document.querySelector(selector);
-const ASSET_VERSION = "20260806.45";
+const ASSET_VERSION = "20260806.46";
 const STAGE_TIMING = { leaving: 520 };
 const PLAYBACK_SETTLE_MARGIN = 30;
 const AUTOPLAY_DELAY = 650;
