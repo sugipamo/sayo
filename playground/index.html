@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Write Sayo, run it in the browser, and watch terms reduce." />
     <title>Sayo Playground</title>
-    <link rel="stylesheet" href="./styles.css?v=20260806.47" />
+    <link rel="stylesheet" href="./styles.css?v=20260806.49" />
   </head>
   <body>
     <header class="topbar">
@@ -73,8 +73,11 @@
           <span id="step-count">0 / 0</span>
         </div>
         <div class="event-detail" id="event-detail">No trace loaded</div>
-        <details class="event-log">
-          <summary>Event log <span id="event-total">0 events</span></summary>
+        <details class="event-log" open>
+          <summary>
+            <span>Event log <span id="event-total">0 events</span></span>
+            <span class="event-log-toggle"><span class="open-label">Close</span><span class="closed-label">Open</span><b aria-hidden="true"></b></span>
+          </summary>
           <ol id="event-list"></ol>
         </details>
       </section>

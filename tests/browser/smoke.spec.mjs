@@ -38,6 +38,13 @@ test("Playground runs, replays, stops, edits a world, and shares it", async ({ p
   await expect(page.locator("#term-stage")).toContainText("(add 9)");
   await expect(page.locator("#term-stage")).toContainText("1");
   await expect(page.locator("#timeline")).toHaveValue("0");
+  await expect(page.locator(".event-log")).toHaveAttribute("open", "");
+  await expect(page.locator(".event-log .event-log-toggle")).toContainText("Close");
+  await page.locator(".event-log summary").click();
+  await expect(page.locator(".event-log")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".event-log .event-log-toggle")).toContainText("Open");
+  await page.locator(".event-log summary").click();
+  await expect(page.locator(".event-log")).toHaveAttribute("open", "");
   const initialStageHeight = await page.locator("#stage").evaluate((stage) => stage.getBoundingClientRect().height);
   const event = (kind) => page.locator("#event-list li").filter({
     has: page.locator(".event-kind", { hasText: new RegExp(`^${kind}$`) }),
