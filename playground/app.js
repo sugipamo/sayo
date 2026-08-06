@@ -1,12 +1,13 @@
-import { renderTermSource, termKind } from "./term-view.js?v=20260806.46";
-import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.46";
+import { renderTermSource, termKind } from "./term-view.js?v=20260806.47";
+import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.47";
 
 const $ = (selector) => document.querySelector(selector);
-const ASSET_VERSION = "20260806.46";
+const ASSET_VERSION = "20260806.47";
 const STAGE_TIMING = { leaving: 520 };
 const PLAYBACK_SETTLE_MARGIN = 30;
 const AUTOPLAY_DELAY = 650;
 const NESTED_ROW_SELECTOR = ":scope > .nested-context-row, :scope > .nested-child-row";
+const ACTIVE_ROW_SELECTOR = ".nested-context-row, .nested-child-row";
 
 const samples = {
   showcase: {
@@ -391,6 +392,9 @@ function renderStage(frame, { animate, motionBudget }) {
   prepareStage(stage, animate);
   configureMotionBudget(stage, motionBudget);
   const focusedViews = frame.focus?.view_ids ?? [];
+  const trackingViews = focusedViews.length
+    ? focusedViews
+    : changesTargetViews(frame.changes ?? []);
   const entries = stageEntries(frame);
   const nextKeys = new Set(entries.map((entry) => entry.key));
   const changes = frame.changes ?? [];
@@ -410,7 +414,13 @@ function renderStage(frame, { animate, motionBudget }) {
 
   if (animate) nextPaint(() => animateRewrite(frame, stage, oldFragments, { maxDuration: motionBudget }));
   else requestAnimationFrame(() => stage.classList.remove("instant"));
-  nextPaint(() => focusTerms(stageViewport, stage, focusedViews));
+  nextPaint(() => followActiveTerms(stageViewport, stage, trackingViews));
+}
+
+function changesTargetViews(changes) {
+  return [...new Set(changes
+    .filter((change) => change.kind !== "preserve")
+    .flatMap((change) => change.to))];
 }
 
 function configureMotionBudget(stage, motionBudget) {
@@ -559,21 +569,58 @@ function removeEmptyNestedRows(stage) {
     });
 }
 
-function focusTerms(viewport, stage, focusedViews) {
-  if (!focusedViews.length || viewport.scrollWidth <= viewport.clientWidth) return;
-  const cards = focusedViews
+function followActiveTerms(viewport, stage, trackingViews) {
+  const cards = trackingViews
     .map((viewId) => stage.querySelector(`.term-card[data-key="${CSS.escape(viewId)}"]:not(.leaving)`))
     .filter(Boolean);
-  if (!cards.length) return;
-  const viewportRect = viewport.getBoundingClientRect();
-  const first = cards[0].getBoundingClientRect();
-  const last = cards[cards.length - 1].getBoundingClientRect();
-  const targetCenter = (first.left + last.right) / 2;
-  const viewportCenter = (viewportRect.left + viewportRect.right) / 2;
+
+  const rows = [...stage.querySelectorAll(NESTED_ROW_SELECTOR)];
+  const activeRow = cards.at(-1)?.closest(ACTIVE_ROW_SELECTOR) ?? rows.at(-1) ?? stage;
+  const rowBox = layoutBox(activeRow, viewport);
+  const verticalTarget = viewport.scrollHeight > viewport.clientHeight
+    ? Math.max(0, rowBox.bottom - viewport.clientHeight + 48)
+    : 0;
+
+  let horizontalTarget = viewport.scrollLeft;
+  if (cards.length && viewport.scrollWidth > viewport.clientWidth) {
+    const boxes = cards.map((card) => layoutBox(card, viewport));
+    const targetLeft = Math.min(...boxes.map((box) => box.left));
+    const targetRight = Math.max(...boxes.map((box) => box.right));
+    const safeLeft = viewport.scrollLeft + viewport.clientWidth * 0.2;
+    const safeRight = viewport.scrollLeft + viewport.clientWidth * 0.8;
+    if (targetLeft < safeLeft || targetRight > safeRight) {
+      horizontalTarget = (targetLeft + targetRight - viewport.clientWidth) / 2;
+    }
+  }
+
   viewport.scrollTo({
-    left: Math.max(0, viewport.scrollLeft + targetCenter - viewportCenter),
+    left: Math.max(0, Math.min(horizontalTarget, viewport.scrollWidth - viewport.clientWidth)),
+    top: Math.max(0, Math.min(verticalTarget, viewport.scrollHeight - viewport.clientHeight)),
     behavior: "auto",
   });
+}
+
+function layoutBox(element, ancestor) {
+  let left = 0;
+  let top = 0;
+  let node = element;
+  while (node && node !== ancestor) {
+    left += node.offsetLeft;
+    top += node.offsetTop;
+    node = node.offsetParent;
+  }
+  if (node !== ancestor) {
+    const elementRect = element.getBoundingClientRect();
+    const ancestorRect = ancestor.getBoundingClientRect();
+    left = elementRect.left - ancestorRect.left + ancestor.scrollLeft;
+    top = elementRect.top - ancestorRect.top + ancestor.scrollTop;
+  }
+  return {
+    left,
+    right: left + element.offsetWidth,
+    top,
+    bottom: top + element.offsetHeight,
+  };
 }
 
 function updateTermCard(card, entry, frame, focusedViews) {

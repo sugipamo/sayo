@@ -175,6 +175,37 @@ test("Nested Groups retain every outer expression as a separate row", async ({ p
   await expect(rows.nth(2)).toContainText("3");
 });
 
+test("Reduction scrolling follows the deepest active row and offscreen rewrites", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 600 });
+  await page.goto("/?autoplay=0");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+
+  const nestedControl = page.locator("#event-list li").filter({
+    has: page.locator(".event-kind", { hasText: /^control_slot_started$/ }),
+  }).first();
+  await nestedControl.evaluate((item) => item.click());
+  await expect.poll(() => page.locator("#stage").evaluate((stage) => stage.scrollTop))
+    .toBeGreaterThan(0);
+  const verticalPosition = await page.locator("#stage").evaluate((stage) => {
+    const rows = stage.querySelectorAll("#term-stage > .nested-child-row");
+    const row = rows[rows.length - 1];
+    const viewport = stage.getBoundingClientRect();
+    const target = row.getBoundingClientRect();
+    return { targetBottom: target.bottom, viewportBottom: viewport.bottom };
+  });
+  expect(verticalPosition.targetBottom).toBeLessThanOrEqual(verticalPosition.viewportBottom);
+
+  const longPrefix = Array.from({ length: 20 }, (_, index) => index + 1).join(" ");
+  await page.locator("#source-editor").fill(`${longPrefix} add 5 3`);
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  const applied = page.locator("#event-list li").filter({
+    has: page.locator(".event-kind", { hasText: /^relation_applied$/ }),
+  }).last();
+  await applied.evaluate((item) => item.click());
+  await expect.poll(() => page.locator("#stage").evaluate((stage) => stage.scrollLeft))
+    .toBeGreaterThan(0);
+});
+
 test("Playground respects reduced motion when considering initial autoplay", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
