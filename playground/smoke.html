@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sayo browser smoke test</title>
+  </head>
+  <body>
+    <main>
+      <h1>Sayo browser smoke test</h1>
+      <p id="status">running</p>
+      <pre id="results"></pre>
+    </main>
+    <script type="module">
+      const cases = [
+        {
+          name: "native relation",
+          request: {
+            version: 1,
+            entry: "main.sayo",
+            files: { "main.sayo": "add 5 3" },
+          },
+          normalForm: "8",
+        },
+        {
+          name: "empty relation directory",
+          request: {
+            version: 1,
+            entry: "main.sayo",
+            directories: ["Box/Int/Boxed", "Boxed"],
+            files: {
+              "main.sayo": "box 5",
+              "Box/space.sayo": 'equal-to "box" %0',
+            },
+          },
+          normalForm: "Boxed{5}",
+        },
+        {
+          name: "embedded standard world",
+          request: {
+            version: 1,
+            entry: "main.sayo",
+            files: { "main.sayo": "fold add 0 1 2 3" },
+          },
+          normalForm: "6",
+        },
+      ];
+
+      const status = document.querySelector("#status");
+      const output = document.querySelector("#results");
+      const worker = new Worker("./sayo-worker.js?v=20260805.43", { type: "module" });
+
+      function evaluate(request) {
+        return new Promise((resolve, reject) => {
+          worker.addEventListener("message", (event) => resolve(JSON.parse(event.data)), {
+            once: true,
+          });
+          worker.addEventListener("error", reject, { once: true });
+          worker.postMessage(request);
+        });
+      }
+
+      try {
+        const results = [];
+        for (const testCase of cases) {
+          const response = await evaluate(testCase.request);
+          if (response.status !== "normal") {
+            throw new Error(`${testCase.name}: expected normal, got ${response.status}`);
+          }
+          if (response.normal_form !== testCase.normalForm) {
+            throw new Error(
+              `${testCase.name}: expected ${testCase.normalForm}, got ${response.normal_form}`,
+            );
+          }
+          if (response.visualization?.format !== "sayo-visualization-ir") {
+            throw new Error(`${testCase.name}: visualization frames are missing`);
+          }
+          results.push({
+            name: testCase.name,
+            normal_form: response.normal_form,
+            visualization_frames: response.visualization.frames.length,
+          });
+        }
+        output.textContent = JSON.stringify(results, null, 2);
+        status.textContent = "passed";
+        status.dataset.result = "passed";
+      } catch (error) {
+        output.textContent = error instanceof Error ? error.stack : String(error);
+        status.textContent = "failed";
+        status.dataset.result = "failed";
+      } finally {
+        worker.terminate();
+      }
+    </script>
+  </body>
+</html>

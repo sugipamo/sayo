@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a problem in SayoVM, the standard World, or the Playground
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem
+      description: Describe what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide minimal Sayo source, the World structure, and the command used.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Sayo version
+      placeholder: sayo 0.1.0
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, browser, Rust version, and other relevant details

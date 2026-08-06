@@ -1,0 +1,13 @@
+{
+  "name": "sayo-playground-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:wasm": "./scripts/build-wasm.sh",
+    "build:pages": "./scripts/build-cloudflare-pages.sh",
+    "test:browser": "npm run build:wasm && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

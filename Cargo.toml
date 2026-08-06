@@ -1,0 +1,52 @@
+[package]
+name = "sayo-lang"
+version = "0.1.0"
+edition = "2024"
+description = "A language runtime built around the application of terms"
+license = "MIT"
+publish = false
+repository = "https://github.com/sugipamo/sayo"
+homepage = "https://github.com/sugipamo/sayo"
+readme = "README.md"
+include = [
+    "/src/**",
+    "/standard_world/**",
+    "/examples/**",
+    "/tests/*.rs",
+    "/tests/browser/**",
+    "/playground/*.html",
+    "/playground/*.css",
+    "/playground/*.js",
+    "/scripts/**",
+    "/package.json",
+    "/package-lock.json",
+    "/playwright.config.mjs",
+    "/README.md",
+    "/README.ja.md",
+    "/CHANGELOG.md",
+    "/CHANGELOG.ja.md",
+    "/CONTRIBUTING.md",
+    "/CONTRIBUTING.ja.md",
+    "/CODE_OF_CONDUCT.md",
+    "/CODE_OF_CONDUCT.ja.md",
+    "/SECURITY.md",
+    "/SECURITY.ja.md",
+    "/docs/**",
+    "/LICENSE",
+]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lib]
+name = "sayo"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+
+[[bin]]
+name = "sayo"
+path = "src/main.rs"

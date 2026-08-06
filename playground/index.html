@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Write Sayo, run it in the browser, and watch terms reduce." />
+    <title>Sayo Playground</title>
+    <link rel="stylesheet" href="./styles.css?v=20260805.43" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Sayo Playground home">
+        <span class="brand-mark">S</span>
+        <span><strong>Sayo</strong><small>Reduction playground</small></span>
+      </a>
+      <div class="top-actions">
+        <button class="quiet-button" id="world-button" type="button" hidden><span>World</span><kbd>W</kbd></button>
+        <button class="quiet-button" id="share-button" type="button">Share</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="editor-panel" aria-labelledby="editor-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">SOURCE</p>
+            <h1 id="editor-title">main.sayo</h1>
+          </div>
+          <div class="editor-actions">
+            <span class="status-pill ready" id="status-pill">Ready</span>
+            <label class="sample-label">Example
+              <select id="sample-select" aria-label="Load an example program"></select>
+            </label>
+          </div>
+        </div>
+        <div class="code-shell">
+          <div class="line-numbers" id="line-numbers" aria-hidden="true">1</div>
+          <textarea id="source-editor" spellcheck="false" aria-label="Sayo source code"></textarea>
+        </div>
+        <div class="editor-footer">
+          <span id="world-summary">1 file · standard world included</span>
+          <div class="compact-limits">
+            <label>Steps <input id="step-limit" type="number" min="1" max="1000000" value="100000" /></label>
+            <label>Trace <input id="trace-limit" type="number" min="1" max="1000000" value="100000" /></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="trace-panel" aria-labelledby="trace-title">
+        <div class="trace-header">
+          <div>
+            <p class="eyebrow">SAYO REDUCTION IR</p>
+            <h2 id="trace-title">Reduction</h2>
+          </div>
+          <div class="playback-controls">
+            <button id="jump-start" type="button" aria-label="Jump to initial state">«</button>
+            <button id="step-back" type="button" aria-label="Previous reduction step">‹</button>
+            <button id="play-button" class="play-button" type="button" aria-label="Run Sayo program">▶</button>
+            <button id="step-forward" type="button" aria-label="Next reduction step">›</button>
+            <button id="jump-end" type="button" aria-label="Jump to completed state">»</button>
+            <label class="speed-label"><span>Speed</span><select id="speed-select" aria-label="Playback speed"><option value="900">0.25×</option><option value="500">0.5×</option><option value="220" selected>1×</option><option value="90">2×</option><option value="45">4×</option></select></label>
+          </div>
+        </div>
+        <div class="stage" id="stage">
+          <div class="stage-placeholder" id="stage-placeholder">
+            <div class="orbit"><span></span><span></span><span></span></div>
+            <p>The motion of evaluation will appear here.</p>
+          </div>
+          <div id="term-stage" class="term-stage" hidden></div>
+        </div>
+        <div class="timeline-row">
+          <input id="timeline" type="range" min="0" max="0" value="0" aria-label="Reduction timeline" />
+          <span id="step-count">0 / 0</span>
+        </div>
+        <div class="event-detail" id="event-detail">No trace loaded</div>
+        <details class="event-log">
+          <summary>Event log <span id="event-total">0 events</span></summary>
+          <ol id="event-list"></ol>
+        </details>
+      </section>
+    </main>
+
+    <dialog id="world-dialog">
+      <form method="dialog" class="dialog-shell">
+        <div class="dialog-header">
+          <div><p class="eyebrow">MEMORY WORLD</p><h2>Edit user world</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Close world editor">×</button>
+        </div>
+        <p class="dialog-copy">Files and semantic empty directories are bundled into one immutable world snapshot when you run.</p>
+        <div id="file-list" class="file-list"></div>
+        <button id="add-file" class="outline-button" type="button">＋ Add file</button>
+        <label class="directory-label">Empty directories <small>One path per line</small>
+          <textarea id="directory-editor" rows="4" placeholder="Box/Int/Boxed&#10;Boxed"></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button id="import-button" class="quiet-button" type="button">Import JSON</button>
+          <button id="export-button" class="quiet-button" type="button">Export JSON</button>
+          <span class="dialog-spacer"></span>
+          <button value="cancel" class="quiet-button">Cancel</button>
+          <button id="save-world" value="default" class="run-button">Save world</button>
+        </div>
+      </form>
+    </dialog>
+    <input id="file-input" type="file" accept="application/json,.json" hidden />
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js?v=20260805.43"></script>
+  </body>
+</html>

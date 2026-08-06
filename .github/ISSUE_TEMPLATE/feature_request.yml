@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a change to the language, Runtime, or Playground
+title: "proposal: "
+labels: [proposal]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Problem to solve
+      description: Describe the motivation and context, not only the requested feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Include example Sayo sequences or state transitions when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: semantics
+    attributes:
+      label: Semantic impact
+      description: Note interactions with the leftmost-first Scheduler, purity, Worlds, or Templates.
