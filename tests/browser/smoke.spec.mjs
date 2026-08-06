@@ -141,7 +141,7 @@ test("Playground opens with the composite showcase and plays it once", async ({ 
     .toHaveValue("for (add (fold add 0 1 2 3)) 4 5 6 7");
   await expect(page.locator("#status-pill")).toHaveText("Normal");
   await expect(page.locator("#play-button")).toHaveText("Ⅱ", { timeout: 5_000 });
-  await expect(page.locator("#speed-select")).toHaveValue("90");
+  await expect(page.locator("#speed-select")).toHaveValue("150");
   await expect(page.locator("#speed-select option:checked")).toHaveText("2×");
   await expect.poll(async () => Number(await page.locator("#timeline").inputValue()))
     .toBeGreaterThan(0);

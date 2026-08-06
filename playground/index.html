@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Write Sayo, run it in the browser, and watch terms reduce." />
     <title>Sayo Playground</title>
-    <link rel="stylesheet" href="./styles.css?v=20260806.44" />
+    <link rel="stylesheet" href="./styles.css?v=20260806.45" />
   </head>
   <body>
     <header class="topbar">
@@ -58,7 +58,7 @@
             <button id="play-button" class="play-button" type="button" aria-label="Run Sayo program">▶</button>
             <button id="step-forward" type="button" aria-label="Next reduction step">›</button>
             <button id="jump-end" type="button" aria-label="Jump to completed state">»</button>
-            <label class="speed-label"><span>Speed</span><select id="speed-select" aria-label="Playback speed"><option value="900">0.25×</option><option value="500">0.5×</option><option value="220" selected>1×</option><option value="90">2×</option><option value="45">4×</option></select></label>
+            <label class="speed-label"><span>Speed</span><select id="speed-select" aria-label="Playback speed"><option value="900">0.25×</option><option value="500">0.5×</option><option value="220" selected>1×</option><option value="150">2×</option><option value="90">4×</option><option value="45">8×</option></select></label>
           </div>
         </div>
         <div class="stage" id="stage">
@@ -124,6 +124,6 @@
     </dialog>
     <input id="file-input" type="file" accept="application/json,.json" hidden />
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=20260806.44"></script>
+    <script type="module" src="./app.js?v=20260806.45"></script>
   </body>
 </html>
