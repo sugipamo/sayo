@@ -1,13 +1,20 @@
-import { renderTermSource, termKind } from "./term-view.js?v=20260805.43";
-import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260805.43";
+import { renderTermSource, termKind } from "./term-view.js?v=20260806.44";
+import { animateRewrite, resetMotion, snapshotFragments } from "./trace-motion.js?v=20260806.44";
 
 const $ = (selector) => document.querySelector(selector);
-const ASSET_VERSION = "20260805.43";
+const ASSET_VERSION = "20260806.44";
 const STAGE_TIMING = { leaving: 520 };
 const PLAYBACK_SETTLE_MARGIN = 30;
+const AUTOPLAY_DELAY = 650;
 const NESTED_ROW_SELECTOR = ":scope > .nested-context-row, :scope > .nested-child-row";
 
 const samples = {
+  showcase: {
+    label: "Showcase · nested motion",
+    entry: "main.sayo",
+    files: { "main.sayo": "for (add (fold add 0 1 2 3)) 4 5 6 7" },
+    directories: [],
+  },
   arithmetic: {
     label: "Arithmetic · native",
     entry: "main.sayo",
@@ -18,6 +25,12 @@ const samples = {
     label: "Fold · standard world",
     entry: "main.sayo",
     files: { "main.sayo": "fold add 0 1 2 3" },
+    directories: [],
+  },
+  duplicate: {
+    label: "Duplicate · standard world",
+    entry: "main.sayo",
+    files: { "main.sayo": "duplicate 5" },
     directories: [],
   },
   motion: {
@@ -43,7 +56,7 @@ const samples = {
   },
 };
 
-let project = structuredClone(samples.motion);
+let project = structuredClone(samples.showcase);
 let worker = null;
 let runId = 0;
 let running = false;
@@ -51,6 +64,7 @@ let visualization = null;
 let frames = [];
 let frameIndex = 0;
 let playTimer = null;
+let autoplayTimer = null;
 let toastTimer = null;
 let projectDirty = true;
 let sourceUpdateTimer = null;
@@ -68,17 +82,21 @@ function initialize() {
   for (const [value, sample] of Object.entries(samples)) {
     select.add(new Option(sample.label, value));
   }
-  select.value = "motion";
+  select.value = "showcase";
   bindEvents();
-  loadHash().finally(() => {
+  loadHash().then((restoredSharedProject) => {
     syncEditor();
     updateWorldSummary();
-    execute();
+    execute({
+      playWhenReady: !restoredSharedProject && initialAutoplayEnabled(),
+      playbackSpeed: "90",
+    });
   });
 }
 
 function bindEvents() {
   editor.addEventListener("input", () => {
+    cancelScheduledPlayback();
     project.files[project.entry] = editor.value;
     projectDirty = true;
     setStatus("ready", "Edited");
@@ -91,13 +109,10 @@ function bindEvents() {
   editor.addEventListener("scroll", () => { lineNumbers.scrollTop = editor.scrollTop; });
   $("#sample-select").addEventListener("change", (event) => {
     if (!event.target.value) return;
-    project = structuredClone(samples[event.target.value]);
-    syncEditor();
-    updateWorldSummary();
-    resetEvaluation();
-    execute();
+    loadSample(event.target.value);
   });
   actionButton.addEventListener("click", () => {
+    cancelScheduledPlayback();
     if (running) stopRun();
     else if (projectDirty || !visualization) execute();
     else togglePlayback();
@@ -109,11 +124,17 @@ function bindEvents() {
   $("#export-button").addEventListener("click", exportProject);
   $("#import-button").addEventListener("click", () => $("#file-input").click());
   $("#file-input").addEventListener("change", importProject);
-  $("#step-back").addEventListener("click", () => setFrame(frameIndex - 1));
-  $("#step-forward").addEventListener("click", () => setFrame(frameIndex + 1));
-  $("#jump-start").addEventListener("click", () => { stopPlayback(); setFrame(0); });
-  $("#jump-end").addEventListener("click", () => { stopPlayback(); setFrame(frames.length - 1); });
-  timeline.addEventListener("input", () => setFrame(Number(timeline.value)));
+  $("#step-back").addEventListener("click", () => { cancelScheduledPlayback(); setFrame(frameIndex - 1); });
+  $("#step-forward").addEventListener("click", () => { cancelScheduledPlayback(); setFrame(frameIndex + 1); });
+  $("#jump-start").addEventListener("click", () => { cancelScheduledPlayback(); stopPlayback(); setFrame(0); });
+  $("#jump-end").addEventListener("click", () => { cancelScheduledPlayback(); stopPlayback(); setFrame(frames.length - 1); });
+  timeline.addEventListener("input", () => { cancelScheduledPlayback(); setFrame(Number(timeline.value)); });
+  document.querySelectorAll(".example-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      loadSample(card.dataset.sample, { playWhenReady: true });
+      $("#editor-title").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
   window.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
@@ -124,6 +145,23 @@ function bindEvents() {
     }
   });
   window.addEventListener("hashchange", () => loadHash());
+}
+
+function loadSample(name, { playWhenReady = false } = {}) {
+  const sample = samples[name];
+  if (!sample) return;
+  cancelScheduledPlayback();
+  project = structuredClone(sample);
+  $("#sample-select").value = name;
+  syncEditor();
+  updateWorldSummary();
+  resetEvaluation();
+  execute({ playWhenReady });
+}
+
+function initialAutoplayEnabled() {
+  return new URLSearchParams(location.search).get("autoplay") !== "0"
+    && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function syncEditor() {
@@ -149,7 +187,7 @@ function createWorker() {
   return worker;
 }
 
-async function execute({ background = false } = {}) {
+async function execute({ background = false, playWhenReady = false, playbackSpeed = null } = {}) {
   clearTimeout(sourceUpdateTimer);
   sourceUpdateTimer = null;
   stopPlayback();
@@ -188,6 +226,7 @@ async function execute({ background = false } = {}) {
       return;
     }
     renderResponse(response);
+    if (playWhenReady && response.status === "normal") schedulePlayback(id, playbackSpeed);
   };
   activeWorker.onerror = (event) => {
     if (id !== runId) return;
@@ -196,6 +235,21 @@ async function execute({ background = false } = {}) {
     renderResponse({ status: "trap", trap: { category: "host error", message: event.message } });
   };
   activeWorker.postMessage({ id, request });
+}
+
+function schedulePlayback(id, playbackSpeed) {
+  cancelScheduledPlayback();
+  autoplayTimer = setTimeout(() => {
+    autoplayTimer = null;
+    if (id !== runId || running || frames.length <= 1 || frameIndex !== 0) return;
+    if (playbackSpeed) $("#speed-select").value = playbackSpeed;
+    togglePlayback();
+  }, AUTOPLAY_DELAY);
+}
+
+function cancelScheduledPlayback() {
+  clearTimeout(autoplayTimer);
+  autoplayTimer = null;
 }
 
 function stopRun() {
@@ -260,6 +314,7 @@ function resetEvaluation() {
   clearTimeout(sourceUpdateTimer);
   sourceUpdateTimer = null;
   stopPlayback();
+  cancelScheduledPlayback();
   if (worker) {
     worker.terminate();
     worker = null;
@@ -649,12 +704,14 @@ async function shareProject() {
 }
 
 async function loadHash() {
-  if (!location.hash.startsWith("#p=")) return;
+  if (!location.hash.startsWith("#p=")) return false;
   try {
     applyProjectDocument(await decodeProject(location.hash.slice(3)));
     showToast("Shared world restored");
+    return true;
   } catch {
     showToast("This share URL is invalid or unsupported");
+    return true;
   }
 }
 

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Write Sayo, run it in the browser, and watch terms reduce." />
     <title>Sayo Playground</title>
-    <link rel="stylesheet" href="./styles.css?v=20260805.43" />
+    <link rel="stylesheet" href="./styles.css?v=20260806.44" />
   </head>
   <body>
     <header class="topbar">
@@ -80,6 +80,27 @@
       </section>
     </main>
 
+    <section class="learn-section" aria-labelledby="learn-title">
+      <div class="learn-intro">
+        <p class="eyebrow">LEARN BY REDUCTION</p>
+        <h2 id="learn-title">Start with a small motion</h2>
+        <p>Terms form the current state. Relations transform that state. Evaluation stops when no Relation applies.</p>
+      </div>
+      <div class="example-grid">
+        <button class="example-card" type="button" data-sample="arithmetic"><span>Arithmetic</span><code>add 5 3</code><small>Capture a value, then apply it.</small></button>
+        <button class="example-card" type="button" data-sample="duplicate"><span>Duplicate</span><code>duplicate 5</code><small>One Term becomes two.</small></button>
+        <button class="example-card" type="button" data-sample="motion"><span>Transform</span><code>for (add 9) 1 2 3</code><small>Consume rightward and emit leftward.</small></button>
+        <button class="example-card" type="button" data-sample="fold"><span>Collect</span><code>fold add 0 1 2 3</code><small>Collapse a sequence at Group end.</small></button>
+        <button class="example-card" type="button" data-sample="trap"><span>Trap</span><code>div 12 0</code><small>Failure remains visible in the trace.</small></button>
+      </div>
+      <div class="syntax-strip" aria-label="Minimal Sayo notation">
+        <div><code>M N</code><span>Apply N to M</span></div>
+        <div><code>(Add 9)</code><span>Reduce a Group first</span></div>
+        <div><code>Plus{9}</code><span>A Term carrying state</span></div>
+        <div><code>%0</code><span>Refer to captured payload</span></div>
+      </div>
+    </section>
+
     <dialog id="world-dialog">
       <form method="dialog" class="dialog-shell">
         <div class="dialog-header">
@@ -103,6 +124,6 @@
     </dialog>
     <input id="file-input" type="file" accept="application/json,.json" hidden />
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=20260805.43"></script>
+    <script type="module" src="./app.js?v=20260806.44"></script>
   </body>
 </html>

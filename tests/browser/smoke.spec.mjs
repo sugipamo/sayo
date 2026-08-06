@@ -28,7 +28,8 @@ test("Playground runs, replays, stops, edits a world, and shares it", async ({ p
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const browserErrors = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
-  await page.goto("/");
+  await page.goto("/?autoplay=0");
+  await page.locator("#sample-select").selectOption("motion");
 
   await expect(page.locator("#source-editor")).toHaveValue("for (add 9) 1 2 3");
   await expect(page.locator("#world-button")).toBeHidden();
@@ -134,8 +135,37 @@ test("Playground runs, replays, stops, edits a world, and shares it", async ({ p
   expect(browserErrors).toEqual([]);
 });
 
-test("Playground renders traps without losing their trace", async ({ page }) => {
+test("Playground opens with the composite showcase and plays it once", async ({ page }) => {
   await page.goto("/");
+  await expect(page.locator("#source-editor"))
+    .toHaveValue("for (add (fold add 0 1 2 3)) 4 5 6 7");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  await expect(page.locator("#play-button")).toHaveText("Ⅱ", { timeout: 5_000 });
+  await expect(page.locator("#speed-select")).toHaveValue("90");
+  await expect(page.locator("#speed-select option:checked")).toHaveText("2×");
+  await expect.poll(async () => Number(await page.locator("#timeline").inputValue()))
+    .toBeGreaterThan(0);
+  await page.locator("#play-button").click();
+
+  await expect(page.locator(".example-card")).toHaveCount(5);
+  await page.locator('.example-card[data-sample="arithmetic"]').click();
+  await expect(page.locator("#source-editor")).toHaveValue("add 5 3");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  await expect(page.locator("#play-button")).toHaveText("Ⅱ", { timeout: 5_000 });
+  await page.locator("#play-button").click();
+});
+
+test("Playground respects reduced motion when considering initial autoplay", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  await page.waitForTimeout(900);
+  await expect(page.locator("#timeline")).toHaveValue("0");
+  await expect(page.locator("#play-button")).toHaveText("▶");
+});
+
+test("Playground renders traps without losing their trace", async ({ page }) => {
+  await page.goto("/?autoplay=0");
   await page.locator("#source-editor").fill("div 1 0");
   await page.locator("#play-button").click();
   await expect(page.locator("#status-pill")).toHaveText("trap", { ignoreCase: true });
@@ -148,7 +178,7 @@ test("Playground renders traps without losing their trace", async ({ page }) => 
 });
 
 test("Playground can stop a Worker and import a project document", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?autoplay=0");
   await expect(page.locator("#status-pill")).toHaveText("Normal");
   await page.locator("#source-editor").fill("fold add 0 1 2 3 4 5 6 7 8 9");
   await page.locator("#play-button").evaluate((button) => {
@@ -186,7 +216,7 @@ test("Playground can stop a Worker and import a project document", async ({ page
 
 test("Playground refuses an oversized share URL and stays usable on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/?autoplay=0");
   const noisySource = await page.evaluate(() => {
     const bytes = crypto.getRandomValues(new Uint8Array(50000));
     let binary = "";
@@ -200,7 +230,7 @@ test("Playground refuses an oversized share URL and stays usable on mobile", asy
 });
 
 test("Visualizer follows source edits without replaying a no-op scan", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?autoplay=0");
   await expect(page.locator("#status-pill")).toHaveText("Normal");
   await expect(page.locator("#speed-select")).toHaveValue("220");
   await expect(page.locator("#speed-select option:checked")).toHaveText("1×");
@@ -218,7 +248,9 @@ test("Visualizer follows source edits without replaying a no-op scan", async ({ 
 });
 
 test("Continuous playback settles each animation inside its frame budget", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?autoplay=0");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  await page.locator("#sample-select").selectOption("motion");
   await expect(page.locator("#status-pill")).toHaveText("Normal");
   await page.locator("#event-list li").nth(20).evaluate((item) => item.click());
   await page.locator("#speed-select").selectOption("45");
@@ -254,7 +286,7 @@ test("Continuous playback settles each animation inside its frame budget", async
 });
 
 test("Switching examples discards playback and prepares the new initial frame", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?autoplay=0");
   await expect(page.locator("#status-pill")).toHaveText("Normal");
   await page.locator("#play-button").click();
   await expect(page.locator("#play-button")).toHaveText("Ⅱ");
@@ -271,7 +303,7 @@ test("Switching examples discards playback and prepares the new initial frame", 
 });
 
 test("A relation returning a plain value crossfades its operands and result", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?autoplay=0");
   await page.locator("#sample-select").selectOption("arithmetic");
   await expect(page.locator("#status-pill")).toHaveText("Normal");
 
