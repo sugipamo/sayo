@@ -1,0 +1,2 @@
+Retain this implementationless capture Relation in Git.
+Identity captures its right-hand Int as the payload of IdentityApply.
