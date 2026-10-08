@@ -1,5 +1,43 @@
 import { expect, test } from "@playwright/test";
 
+for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+  test(`Event log follows playback without scrolling the page at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/?autoplay=0");
+    await expect(page.locator("#status-pill")).toHaveText("Normal");
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+    await page.evaluate(() => window.scrollTo(0, 200));
+    const pageScroll = await page.evaluate(() => window.scrollY);
+    // DOM clicks avoid Playwright scrolling offscreen controls into view.
+    await page.locator("#jump-end").evaluate((button) => button.click());
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+    expect(await page.locator("#event-list").evaluate((list) => {
+      const current = list.querySelector(".current").getBoundingClientRect();
+      const bounds = list.getBoundingClientRect();
+      return list.scrollTop > 0 && current.top >= bounds.top && current.bottom <= bounds.bottom + 1;
+    })).toBe(true);
+
+    await page.locator("#jump-start").evaluate((button) => button.click());
+    expect(await page.locator("#event-list").evaluate((list) => list.scrollTop)).toBe(0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+    await page.locator("#timeline").evaluate((timeline) => {
+      timeline.value = "20";
+      timeline.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+
+    await page.locator("#play-button").evaluate((button) => button.click());
+    await expect.poll(() => page.locator("#timeline").inputValue()).not.toBe("20");
+    await page.locator("#play-button").evaluate((button) => button.click());
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+
+    await page.locator(".event-log summary").evaluate((summary) => summary.click());
+    await page.locator("#jump-end").evaluate((button) => button.click());
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+  });
+}
+
 test("Playground transports external references as opaque atomic Terms", async ({ page }) => {
   const browserErrors = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));

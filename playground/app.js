@@ -380,11 +380,25 @@ function setFrame(nextIndex) {
     showToast(`${failure.title}: ${failure.message}`);
   }
   [...eventList.children].forEach((item, index) => item.classList.toggle("current", index === frameIndex));
-  eventList.children[frameIndex]?.scrollIntoView({ block: "nearest" });
+  followCurrentEvent();
   const motionBudget = playTimer
     ? Math.max(24, Number($("#speed-select").value) - PLAYBACK_SETTLE_MARGIN)
     : Infinity;
   renderStage(frame, { animate, motionBudget });
+}
+
+function followCurrentEvent() {
+  const item = eventList.children[frameIndex];
+  if (!item || !eventList.clientHeight) return;
+  const itemBounds = item.getBoundingClientRect();
+  const visibleTop = eventList.getBoundingClientRect().top + eventList.clientTop;
+  const visibleBottom = visibleTop + eventList.clientHeight;
+  // scrollIntoView also moves the page when the log is below the viewport.
+  if (itemBounds.top < visibleTop) {
+    eventList.scrollTop += itemBounds.top - visibleTop;
+  } else if (itemBounds.bottom > visibleBottom) {
+    eventList.scrollTop += Math.min(itemBounds.top - visibleTop, itemBounds.bottom - visibleBottom);
+  }
 }
 
 function renderStage(frame, { animate, motionBudget }) {

@@ -15,6 +15,10 @@ User-visible changes to Sayo are recorded here.
 - Angle brackets now delimit external references instead of being ordinary Atom characters
 - Rust `Term` contains external metadata and an internal ownership marker; use `Term::atom` rather than struct literals
 
+### Fixed
+
+- Playground event tracking scrolls only the Event log, preserving the page position during loading and playback
+
 ## 0.1.0 - 2026-08-06
 
 ### Added
