@@ -2,6 +2,19 @@
 
 User-visible changes to Sayo are recorded here.
 
+## Unreleased
+
+### Added
+
+- Typed opaque references using `Role<blob:ID>` and `Role<handle:ID>`
+- Host inspection of semantic payloads and pure reevaluation of retained Terms with fixed responses
+- A deterministic Host roundtrip example, with no Agent integration or automatic external dispatch
+
+### Changed
+
+- Angle brackets now delimit external references instead of being ordinary Atom characters
+- Rust `Term` contains external metadata and an internal ownership marker; use `Term::atom` rather than struct literals
+
 ## 0.1.0 - 2026-08-06
 
 ### Added

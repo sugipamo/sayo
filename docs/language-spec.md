@@ -47,12 +47,13 @@ may produce a Term that retains `5` and can receive another Term later.
 Sayo follows four core principles:
 
 1. Everything is a Term.
-2. Semantic data is String.
+2. Semantic data interpreted by the core is String.
 3. Runtime owns state.
 4. Everything evolves by transitions.
 
 Here, String means data observed and exchanged by Sayo programs. `TermId`, Native state, Group, and `End` are internal
 control information used by SayoVM to manage transitions, not user-semantic values.
+Opaque external references can be transported as whole Terms; their referenced contents are interpreted only by the Host.
 
 ## 2. Term
 
@@ -61,6 +62,7 @@ control information used by SayoVM to manage transitions, not user-semantic valu
 ```text
 Term ::= Atom
        | StringLiteral
+       | ExternalTerm
        | Term Term
        | (Term)
 
@@ -139,6 +141,28 @@ Plus 5
 Runtime can create state Terms through automatic capture and internal transitions. Users may also write
 `Template { payload... }` as the formal state-construction syntax. A payload may be empty. Every evaluation constructs a
 new StateInstance; this syntax does not deserialize or restore an existing State ID.
+
+### 2.4 External references — Prototype implemented
+
+```text
+ExternalTerm ::= Role `<` Kind `:` ID `>`
+Kind         ::= `blob` | `handle`
+```
+
+`Role` is an ASCII identifier beginning with a letter or `_`. `ID` is a nonempty sequence of ASCII letters, digits,
+`_`, `-`, or `.`. `<>` contains one reference, never a Sayo expression or raw contents. `blob` denotes a Host-owned
+immutable value; `handle` denotes a connection to a potentially mutable external target. Neither is a capability.
+
+The role must be a non-primitive user Space declared with `space.sayo`. Explicit construction chooses this Space without
+running a source checker. The core does not dereference, compare contents, or change external values. External Terms
+have no semantic payload or automatic Tick/End behavior; Relations use their outer Space and can transport them whole.
+For example, `Request{Agent<handle:coder>, Document<blob:input>}` has two semantic payload Terms, each with one opaque
+reference. `%0` returns the whole Agent Term, not its external ID or contents.
+
+Reference metadata is available to the Rust Host through `Term::external`. IDs are displayed in source and traces.
+The Host owns lookup, reference validation, and blob immutability. Schemas and source Space checkers cannot construct
+external Terms. Combined `{}`/`<>` syntax and reference-identity operations are deferred. See
+[External References](external-boundary.md) for the complete prototype contract and executable mock Host example.
 
 ## 3. Space
 
@@ -324,6 +348,11 @@ Sayo semantics touch the outside world at exactly two points:
 Sayo provides neither `Print` nor an operation that obtains more external input during evaluation. The result is a
 `NormalForm<Term>`, not a String, and may contain zero, one, or many Terms. CLI rendering, structured Rust API access, and
 Visualizer rendering are different Host observations of the same remaining sequence.
+
+A Host may observe residual Request Terms, process them outside Sayo, and provide fixed response Terms as input to a new
+evaluation interval. `Runtime::payload_terms` inspects semantic Template payloads; `Runtime::evaluate_terms` accepts
+unmodified Terms from the same Runtime without reparsing display text. The evaluator does not execute Requests,
+automatically resume pending work, or expose nested Group NormalForms as external execution boundaries.
 
 `Trap` is not an output Term. It means evaluation did not reach NormalForm. Divergence has no result, while a bootstrap
 limit is a diagnostic guard against divergence. SRI is an execution observation, not Sayo output.

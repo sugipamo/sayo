@@ -450,7 +450,10 @@ fn collect_sayo_files(expression: &Expression, files: &mut Vec<PathBuf>) {
             collect_sayo_files(right, files);
         }
         Expression::Group(inner) => collect_sayo_files(inner, files),
-        Expression::Atom(_) | Expression::StringLiteral(_) | Expression::PayloadRef(_) => {}
+        Expression::External { .. }
+        | Expression::Atom(_)
+        | Expression::StringLiteral(_)
+        | Expression::PayloadRef(_) => {}
     }
 }
 
@@ -482,7 +485,10 @@ fn collect_states(expression: &Expression, states: &mut Vec<(String, usize)>) {
             collect_states(right, states);
         }
         Expression::Group(inner) => collect_states(inner, states),
-        Expression::Atom(_) | Expression::StringLiteral(_) | Expression::PayloadRef(_) => {}
+        Expression::External { .. }
+        | Expression::Atom(_)
+        | Expression::StringLiteral(_)
+        | Expression::PayloadRef(_) => {}
     }
 }
 
@@ -494,7 +500,7 @@ fn max_payload_reference(expression: &Expression) -> Option<usize> {
             max_payload_reference(left).max(max_payload_reference(right))
         }
         Expression::Group(inner) => max_payload_reference(inner),
-        Expression::Atom(_) | Expression::StringLiteral(_) => None,
+        Expression::External { .. } | Expression::Atom(_) | Expression::StringLiteral(_) => None,
     }
 }
 

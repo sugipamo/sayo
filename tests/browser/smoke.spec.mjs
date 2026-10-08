@@ -1,5 +1,35 @@
 import { expect, test } from "@playwright/test";
 
+test("Playground transports external references as opaque atomic Terms", async ({ page }) => {
+  const browserErrors = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  await page.goto("/?autoplay=0");
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  await page.locator("#file-input").setInputFiles({
+    name: "external-references.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify({
+      format: "sayo-playground",
+      version: 0,
+      entry: "program/main.sayo",
+      files: {
+        "program/main.sayo": "Agent<handle:coder> Document<blob:missing.sayo>",
+        "Agent/space.sayo": 'equal-to "agent" %0',
+        "Document/space.sayo": 'equal-to "document" %0',
+      },
+      directories: [],
+    })),
+  });
+  await expect(page.locator("#source-editor")).toHaveValue("Agent<handle:coder> Document<blob:missing.sayo>");
+  await page.locator("#play-button").click();
+  await expect(page.locator("#status-pill")).toHaveText("Normal");
+  await page.locator("#jump-end").click();
+  await expect(page.locator('.term-card[data-source="Agent<handle:coder>"]')).toHaveCount(1);
+  await expect(page.locator('.term-card[data-source="Document<blob:missing.sayo>"]')).toHaveCount(1);
+  await expect(page.locator("#term-stage .term-state-head")).toHaveCount(0);
+  expect(browserErrors).toEqual([]);
+});
+
 test("Sayo evaluates representative programs through Wasm and a Web Worker", async ({
   page,
 }) => {

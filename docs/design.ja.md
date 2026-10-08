@@ -12,6 +12,12 @@ Sayoの純粋核は、Hostが起動時に構築した`InitialTerms × WorldSnaps
 ならず、同時変更時の動作は保証しない。これは一般的な実行中プログラム資源の変更と同様に、評価入力への
 外部競合として意味論の外に置く。
 
+外部参照の試作は `blob` と `handle` の受け渡しを追加するもので、Relation の副作用は追加しない。
+Request は初期 Group 全体の NormalForm を Host が観測するまで通常の Term として残る。
+Host は外部で処理し、固定された応答 Term を次の純粋な評価区間へ渡せる。外形は `{}` に Term 全体を
+並べて表し、`<>` の内容にはアクセスしない。採用した最小契約と保留中の実行方針は
+[外部参照](external-boundary.ja.md) を参照。
+
 ## Relation実装のセルフホスト移行
 
 ```text

@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::external::ExternalReference;
 use crate::model::Expression;
 
 pub fn parse(source: &str) -> Result<Expression> {
@@ -24,6 +25,8 @@ enum Token {
     CloseParen,
     OpenBrace,
     CloseBrace,
+    OpenAngle,
+    CloseAngle,
     Comma,
 }
 
@@ -36,6 +39,8 @@ impl Token {
             Self::CloseParen => ")".into(),
             Self::OpenBrace => "{".into(),
             Self::CloseBrace => "}".into(),
+            Self::OpenAngle => "<".into(),
+            Self::CloseAngle => ">".into(),
             Self::Comma => ",".into(),
         }
     }
@@ -75,13 +80,15 @@ fn tokenize(source: &str) -> Result<Vec<Token>> {
                 }
             }
             tokens.push(Token::StringLiteral(value));
-        } else if matches!(character, '(' | ')' | '{' | '}' | ',') {
+        } else if matches!(character, '(' | ')' | '{' | '}' | '<' | '>' | ',') {
             push_current(&mut tokens, &mut current);
             tokens.push(match character {
                 '(' => Token::OpenParen,
                 ')' => Token::CloseParen,
                 '{' => Token::OpenBrace,
                 '}' => Token::CloseBrace,
+                '<' => Token::OpenAngle,
+                '>' => Token::CloseAngle,
                 ',' => Token::Comma,
                 _ => unreachable!(),
             });
@@ -139,6 +146,32 @@ fn parse_sequence(
 }
 
 fn parse_term(tokens: &[Token], position: usize) -> Result<(Expression, usize)> {
+    if tokens.get(position + 1) == Some(&Token::OpenAngle) {
+        let Token::Atom(role) = &tokens[position] else {
+            return Err(Error::Parse("external role must be an Atom".into()));
+        };
+        if !role.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_alphabetic() || byte == b'_' || (index > 0 && byte.is_ascii_digit())
+        }) {
+            return Err(Error::Parse("invalid external role name".into()));
+        }
+        let Some(Token::Atom(source)) = tokens.get(position + 2) else {
+            return Err(Error::Parse("expected blob:ID or handle:ID".into()));
+        };
+        let reference = ExternalReference::parse(source)?;
+        if tokens.get(position + 3) != Some(&Token::CloseAngle) {
+            return Err(Error::Parse(
+                "external payload must contain one reference".into(),
+            ));
+        }
+        return Ok((
+            Expression::External {
+                role: role.clone(),
+                reference,
+            },
+            position + 4,
+        ));
+    }
     if tokens[position] == Token::OpenParen {
         let (term, next) = parse_sequence(tokens, position + 1, true)?;
         return Ok((Expression::Group(Box::new(term)), next));
@@ -174,7 +207,12 @@ fn parse_term(tokens: &[Token], position: usize) -> Result<(Expression, usize)> 
             }
         }
         Token::CloseParen => return Err(Error::Parse("unexpected parenthesis".into())),
-        Token::OpenParen | Token::OpenBrace | Token::CloseBrace | Token::Comma => {
+        Token::OpenParen
+        | Token::OpenBrace
+        | Token::CloseBrace
+        | Token::OpenAngle
+        | Token::CloseAngle
+        | Token::Comma => {
             return Err(Error::Parse("unexpected grouping token".into()));
         }
     };

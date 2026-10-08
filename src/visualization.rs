@@ -954,11 +954,13 @@ fn term_from_expression(
                 })
                 .collect(),
         },
-        Expression::Atom(_) | Expression::StringLiteral(_) => SviTerm::Atom {
-            term_id,
-            source: source.into(),
-            space: space.into(),
-        },
+        Expression::External { .. } | Expression::Atom(_) | Expression::StringLiteral(_) => {
+            SviTerm::Atom {
+                term_id,
+                source: source.into(),
+                space: space.into(),
+            }
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::external::ExternalReference;
 use crate::world::VirtualPath;
 pub type TermId = u64;
 pub type NativeTermId = u64;
@@ -28,6 +29,11 @@ pub enum Expression {
     Atom(String),
     /// A decoded, immutable UTF-8 String value.
     StringLiteral(String),
+    /// A typed reference whose contents are interpreted only by the Host.
+    External {
+        role: String,
+        reference: ExternalReference,
+    },
     /// A state term with a Template name and an ordered Sayo payload.
     State {
         template: String,
@@ -50,6 +56,9 @@ impl Expression {
             Self::Atom(source) => source.clone(),
             Self::StringLiteral(value) => serde_json::to_string(value)
                 .expect("a Rust UTF-8 string always has a JSON representation"),
+            Self::External { role, reference } => {
+                format!("{role}<{}>", reference.render_source())
+            }
             Self::State { template, payload } => format!(
                 "{template}{{{}}}",
                 payload
@@ -101,8 +110,12 @@ impl NormalForm {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Term {
+    /// Opaque reference metadata; no referenced contents live in the evaluator.
+    pub external: Option<Box<ExternalReference>>,
+    /// Internal ownership marker for reinjecting Terms without reparsing source.
+    pub(crate) runtime_id: u64,
     pub term_id: Option<TermId>,
     pub evaluation_depth: usize,
     pub source: String,
@@ -116,6 +129,8 @@ pub struct Term {
 impl Term {
     pub fn atom(source: String, space: String) -> Self {
         Self {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: 0,
             display: source.clone(),

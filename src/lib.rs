@@ -1,6 +1,7 @@
 mod arity;
 pub mod check;
 pub mod error;
+pub mod external;
 pub mod model;
 pub mod parser;
 pub mod runtime;
@@ -14,6 +15,7 @@ pub mod world;
 mod wasm;
 
 pub use error::{Error, Result};
+pub use external::{ExternalKind, ExternalReference};
 pub use model::{NormalForm, StateInstance, TermImplementation};
 pub use runtime::{Runtime, RuntimeLimits, TracedEvaluation};
 pub use standard_world::embedded_standard_world;

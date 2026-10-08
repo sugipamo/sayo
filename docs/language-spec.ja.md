@@ -48,12 +48,13 @@ Add 5
 Sayoの基本原則は次のとおりである。
 
 1. Everything is a Term
-2. Semantic data is String
+2. Semantic data interpreted by the core is String
 3. Runtime owns state
 4. Everything evolves by transitions
 
 ここでいうStringは、Sayoプログラムが観測・受け渡しするデータを指す。`TermId`、Native状態、
 Group、`End`はSayoVMが遷移を管理する内部制御情報であり、ユーザーの意味論上の値ではない。
+不透明な外部参照は Term 全体として受け渡せるが、参照先の内容は Host だけが解釈する。
 
 ## 2. Term
 
@@ -62,6 +63,7 @@ Group、`End`はSayoVMが遷移を管理する内部制御情報であり、ユ�
 ```text
 Term ::= Atom
        | StringLiteral
+       | ExternalTerm
        | Term Term
        | (Term)
 
@@ -140,6 +142,28 @@ Plus 5
 `Template { payload... }`を正式な状態構築構文として記述できる。payloadは0項でもよく、
 `Template {}`は新しい0項StateInstanceを生成する。この構文は既存のState IDを復元する
 シリアライズではなく、評価のたびに新しいStateInstanceを作る。
+
+### 2.4 外部参照 — プロトタイプ実装済み
+
+```text
+ExternalTerm ::= Role `<` Kind `:` ID `>`
+Kind         ::= `blob` | `handle`
+```
+
+Role は英字または `_` で始まる ASCII 識別子、ID は空でない ASCII 英数字と `_`、`-`、`.` の列である。
+`<>` に入るのは一つの参照であり、Sayo の式や raw な内容ではない。`blob` は Host 管理の不変値、
+`handle` は外部で変化し得る対象への接続口を示す。いずれも capability ではない。
+
+role は `space.sayo` が宣言された非 primitive のユーザー Space とする。明示的な構築時はソース checker を
+実行せず、この role によって Space を決める。核は外部の内容を読み取り・比較・変更しない。
+外部 Term 自体に意味論内 payload や自動の Tick/End はなく、Relation は外形の Space を使い Term 全体を
+受け渡す。`Request{Agent<handle:coder>, Document<blob:input>}` は二つの意味論内 payload Term を持ち、
+各 Term が一つの不透明な参照を保持する。`%0` は Agent Term 全体を返し、外部の ID や内容を取り出さない。
+
+Rust Host は `Term::external` から参照種別と ID を取得できる。ID はソースとトレースに表示される。
+lookup、参照の検証、blob の不変性は Host の責務である。schema とソースの Space checker では外部 Term を
+構築できない。`{}` と `<>` の併用構文と参照同一性の操作は保留とする。
+詳細な試作仕様と実行可能な mock Host は [外部参照](external-boundary.ja.md) を参照。
 
 ## 3. Space
 
@@ -329,6 +353,11 @@ Sayoの意味論が外界と接触する面は二つだけである。
 Sayo内部から値を送信する`Print`や、評価途中で外部入力を追加取得する操作は導入しない。結果は文字列ではなく
 `NormalForm<Term>`であり、0項・1項・複数項の全てを許す。CLIの空白区切り表示、Rust APIでの構造取得、
 将来のVisualizer表示は、同じ残存Term列に対するHost側の異なる観測方法である。
+
+Host は残存 Request を観測して Sayo の外で処理し、固定された応答 Term を新しい評価区間へ渡せる。
+`Runtime::payload_terms` は Template の意味論内 payload を取得し、`Runtime::evaluate_terms` は
+同じ Runtime が作った未変更の Term を表示文字列の再解析なしで受け取る。評価器は Request を実行せず、
+待ち状態を自動で再開しない。内側の Group の NormalForm は外部実行の境界にはならない。
 
 `Trap`は出力Termではなく、NormalFormへ到達しなかった評価結果である。発散には結果がなく、初期VMの
 bootstrap limit到達は発散を保護する診断である。SRIは実行観測であり、Sayoの出力ではない。

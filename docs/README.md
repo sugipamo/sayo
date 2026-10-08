@@ -5,6 +5,7 @@ English | [日本語](README.ja.md)
 - [Getting Started](getting-started.md): installation, execution, World setup, and testing
 - [Language Specification](language-spec.md): current language semantics and implementation scope
 - [Design Notes](design.md): rationale for the Host boundary, Native execution, and state management
+- [External References](external-boundary.md): opaque blob/handle references and the pure Request/Response prototype
 - [Sayo Reduction IR](sri-json.md): internal Reducer event JSON contract
 - [Sayo Visualization IR](svi-json.md): complete frame JSON contract for Visualizers
 - [Playground Deployment](deployment.md): Cloudflare Pages build and later publication procedure

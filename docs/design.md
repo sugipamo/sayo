@@ -11,6 +11,11 @@ to the Host/VM observation and operations layer; they are not Sayo I/O effects. 
 `WorldSnapshot` does not require a physical copy. The Host must not mutate the World or referenced Sayo files while a
 Runtime is alive. Concurrent mutation is outside the semantics and is treated as interference with the evaluation input.
 
+The external-reference prototype adds typed `blob`/`handle` transport, not effectful Relations. A Request remains an
+ordinary Term until the Host observes the complete NormalForm. The Host can process it and start a new pure interval
+with fixed response Terms. Semantic envelopes use `{}` to group whole opaque Terms; `<>` contents remain inaccessible.
+See [External References](external-boundary.md) for the selected contract and deferred execution policy.
+
 ## Bootstrapping and self-hosting Relation implementations
 
 ```text

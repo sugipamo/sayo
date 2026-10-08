@@ -14,7 +14,10 @@ use crate::trace::{
 };
 use crate::world::{FsWorld, MemoryWorld, VirtualPath, WorldHandle, WorldPath, WorldView};
 
+static NEXT_RUNTIME_ID: AtomicU64 = AtomicU64::new(1);
+
 pub struct Runtime {
+    runtime_id: u64,
     world: VirtualPath,
     standard_world: VirtualPath,
     limits: RuntimeLimits,
@@ -790,6 +793,7 @@ impl Runtime {
             crate::arity::analyze_virtual(&[world.clone(), standard_world.clone()])?;
         let inactive_standard_components = arity_analysis.inactive_lower_components().clone();
         Ok(Self {
+            runtime_id: NEXT_RUNTIME_ID.fetch_add(1, Ordering::Relaxed),
             world,
             standard_world,
             limits,
@@ -841,6 +845,48 @@ impl Runtime {
             group: None,
         };
         self.evaluate_source(source, &base, &mut stack, None, &mut trace)
+    }
+
+    /// Start a new pure evaluation interval with retained Terms and fixed Host
+    /// observations. Terms must come from this Runtime and be unmodified.
+    /// This does not execute requests or interpret any external reference.
+    pub fn evaluate_terms(&self, terms: Vec<Term>) -> Result<NormalForm> {
+        for term in &terms {
+            self.validate_owned_term(term)?;
+        }
+        let mut recorder = None;
+        let mut trace = TraceContext {
+            recorder: &mut recorder,
+            group: None,
+        };
+        self.normalize_materialized_terms(terms, 0, &mut trace)
+            .map(NormalForm::new)
+    }
+
+    /// Inspect the ordered, semantic payload of a Template at the Host boundary.
+    /// An external Term has no semantic payload to split or inspect.
+    pub fn payload_terms(&self, term: &Term) -> Result<Option<Vec<Term>>> {
+        self.validate_owned_term(term)?;
+        self.template_payload_ids(term)?
+            .map(|ids| ids.into_iter().map(|id| self.term_for_id(id)).collect())
+            .transpose()
+    }
+
+    fn validate_owned_term(&self, term: &Term) -> Result<()> {
+        if term.runtime_id != self.runtime_id {
+            return Err(Error::Implementation(
+                "Term belongs to a different Runtime".into(),
+            ));
+        }
+        let id = term
+            .term_id
+            .ok_or_else(|| Error::Implementation("Term has no TermId".into()))?;
+        if self.term_for_id(id)? != *term {
+            return Err(Error::Implementation(
+                "Host modified a Runtime-owned Term".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Render a normal form for users.  This is intentionally distinct from
@@ -1072,9 +1118,37 @@ impl Runtime {
             );
         }
         match expression {
+            Expression::External { role, reference } => {
+                if context.is_some_and(|context| context.schema || context.space_checker) {
+                    return Err(Error::Implementation(
+                        "restricted evaluation cannot construct external Terms".into(),
+                    ));
+                }
+                if NATIVE_PRIMITIVE_SPACES.contains(&role.as_str())
+                    || matches!(
+                        role.as_str(),
+                        "String" | "Ordering" | "Trap" | "Vanish" | "Miss" | "Pass" | "CheckSpace"
+                    )
+                    || !self.component_root(role).is_some_and(|component| {
+                        component
+                            .join("space.sayo")
+                            .is_ok_and(|path| path.is_file().unwrap_or(false))
+                    })
+                {
+                    return Err(Error::Membership(format!(
+                        "external role `{role}` must be a user Space declared with space.sayo"
+                    )));
+                }
+                let mut term = Term::atom(expression.render_source(), role.clone());
+                term.evaluation_depth = expression_depth;
+                term.external = Some(Box::new(reference.clone()));
+                self.store_term(term).map(NormalForm::one)
+            }
             Expression::StringLiteral(value) => {
                 let rendered = render_string_literal(value);
                 self.store_term(Term {
+                    external: None,
+                    runtime_id: 0,
                     term_id: None,
                     evaluation_depth: expression_depth,
                     source: rendered.clone(),
@@ -1158,6 +1232,8 @@ impl Runtime {
                     }
                     return self
                         .store_term(Term {
+                            external: None,
+                            runtime_id: 0,
                             term_id: None,
                             evaluation_depth: expression_depth,
                             source: "Miss".into(),
@@ -1180,6 +1256,8 @@ impl Runtime {
                 {
                     return self
                         .store_term(Term {
+                            external: None,
+                            runtime_id: 0,
                             term_id: None,
                             evaluation_depth: expression_depth,
                             source: source.clone(),
@@ -2274,6 +2352,8 @@ impl Runtime {
     ) -> Result<SpaceCheckOutcome> {
         let rendered = render_string_literal(candidate_source);
         let candidate = self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: 0,
             source: rendered.clone(),
@@ -3114,7 +3194,10 @@ impl Runtime {
                 Self::collect_sayo_file_references(right, files);
             }
             Expression::Group(inner) => Self::collect_sayo_file_references(inner, files),
-            Expression::Atom(_) | Expression::StringLiteral(_) | Expression::PayloadRef(_) => {}
+            Expression::External { .. }
+            | Expression::Atom(_)
+            | Expression::StringLiteral(_)
+            | Expression::PayloadRef(_) => {}
         }
     }
 
@@ -3181,7 +3264,7 @@ impl Runtime {
                 Self::collect_payload_references(right, references);
             }
             Expression::Group(inner) => Self::collect_payload_references(inner, references),
-            Expression::Atom(_) | Expression::StringLiteral(_) => {}
+            Expression::External { .. } | Expression::Atom(_) | Expression::StringLiteral(_) => {}
         }
     }
 
@@ -3204,6 +3287,8 @@ impl Runtime {
         let value_display = self.term_for_id(captured)?.display;
         let name = if twice { "EmitTwice" } else { "EmitOnce" };
         self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth,
             source: String::new(),
@@ -3253,6 +3338,8 @@ impl Runtime {
             .collect::<Result<Vec<_>>>()?
             .join(", ");
         let term = self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth,
             source: format!("{template} {{ {payload_display} }}"),
@@ -3341,6 +3428,8 @@ impl Runtime {
             .map_err(|_| Error::Implementation("native term store lock poisoned".into()))?
             .insert(native_id, NativeTermState::SelfLoop);
         self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: 0,
             source: String::new(),
@@ -3371,6 +3460,8 @@ impl Runtime {
             .map_err(|_| Error::Implementation("native term store lock poisoned".into()))?
             .insert(id, state);
         self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: depth,
             source: String::new(),
@@ -3459,6 +3550,8 @@ impl Runtime {
             .map_err(|_| Error::Implementation("native term store lock poisoned".into()))?
             .insert(id, state);
         self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: depth,
             source: String::new(),
@@ -3595,6 +3688,8 @@ impl Runtime {
             _ => unreachable!("Each state registration only accepts Each states"),
         };
         self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth,
             source: String::new(),
@@ -3749,6 +3844,8 @@ impl Runtime {
             _ => unreachable!("Sieve state"),
         };
         self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: depth,
             source: String::new(),
@@ -3769,6 +3866,8 @@ impl Runtime {
             FilterChoice::Drop => ("drop", "Drop"),
         };
         self.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: depth,
             source: source.into(),
@@ -4290,6 +4389,7 @@ impl Runtime {
     fn store_term(&self, mut term: Term) -> Result<Term> {
         let id = self.next_term_id.fetch_add(1, Ordering::Relaxed);
         term.term_id = Some(id);
+        term.runtime_id = self.runtime_id;
         self.terms
             .lock()
             .map_err(|_| Error::Implementation("term store lock poisoned".into()))?
@@ -4548,6 +4648,8 @@ impl<'a> NativeContext<'a> {
                 },
             );
         let term = self.runtime.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: self.depth,
             source: String::new(),
@@ -4561,6 +4663,8 @@ impl<'a> NativeContext<'a> {
 
     fn register_int(&self, value: i64) -> Result<TermId> {
         let term = self.runtime.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: self.depth,
             source: value.to_string(),
@@ -4584,6 +4688,8 @@ impl<'a> NativeContext<'a> {
             .insert(native_id, NativeTermState::Comparison { captured });
         let display = format!("CompareInt{{{}}}", self.term(captured)?.display);
         let term = self.runtime.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: self.depth,
             source: String::new(),
@@ -4608,6 +4714,8 @@ impl<'a> NativeContext<'a> {
             .insert(native_id, NativeTermState::StringComparison { captured });
         let display = format!("CompareString{{{}}}", self.term(captured)?.display);
         let term = self.runtime.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: self.depth,
             source: String::new(),
@@ -4632,6 +4740,8 @@ impl<'a> NativeContext<'a> {
             .insert(native_id, NativeTermState::StringEquality { expected });
         let display = format!("EqualStringExpected{{{}}}", self.term(expected)?.display);
         let term = self.runtime.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: self.depth,
             source: String::new(),
@@ -4646,6 +4756,8 @@ impl<'a> NativeContext<'a> {
 
     fn register_miss(&self) -> Result<TermId> {
         let term = self.runtime.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: self.depth,
             source: "Miss".into(),
@@ -4673,6 +4785,8 @@ impl<'a> NativeContext<'a> {
             OrderingKind::Greater => "Greater",
         };
         let term = self.runtime.store_term(Term {
+            external: None,
+            runtime_id: 0,
             term_id: None,
             evaluation_depth: self.depth,
             source: display.into(),
@@ -4918,6 +5032,8 @@ fn native_fold_transform(context: &mut NativeContext<'_>, input: TermId) -> Resu
         .map_err(|_| Error::Implementation("native term store lock poisoned".into()))?
         .insert(id, NativeTermState::FoldInit { transform: input });
     let term = context.runtime.store_term(Term {
+        external: None,
+        runtime_id: 0,
         term_id: None,
         evaluation_depth: context.depth,
         source: String::new(),
@@ -4947,6 +5063,8 @@ fn native_reduce_transform(
         .map_err(|_| Error::Implementation("native term store lock poisoned".into()))?
         .insert(id, NativeTermState::ReduceInit { transform: input });
     let term = context.runtime.store_term(Term {
+        external: None,
+        runtime_id: 0,
         term_id: None,
         evaluation_depth: context.depth,
         source: String::new(),
