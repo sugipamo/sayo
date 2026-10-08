@@ -50,6 +50,18 @@ const samples = {
     },
     directories: ["Box/Int/Boxed", "Boxed"],
   },
+  external: {
+    label: "External references · request",
+    entry: "main.sayo",
+    files: {
+      "main.sayo": "ask Agent<handle:coder> Document<blob:input> accept",
+      "Ask/space.sayo": 'equal-to "ask" %0',
+      "Agent/space.sayo": 'equal-to "agent" %0',
+      "Document/space.sayo": 'equal-to "document" %0',
+      "Accept/space.sayo": 'equal-to "accept" %0',
+    },
+    directories: ["Ask/Agent/WithAgent", "WithAgent/Document/Request", "Request"],
+  },
   trap: {
     label: "Trap · division by zero",
     entry: "main.sayo",

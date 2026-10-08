@@ -9,6 +9,7 @@ User-visible changes to Sayo are recorded here.
 - Typed opaque references using `Role<blob:ID>` and `Role<handle:ID>`
 - Host inspection of semantic payloads and pure reevaluation of retained Terms with fixed responses
 - A deterministic Host roundtrip example, with no Agent integration or automatic external dispatch
+- A Playground example that builds a Request from opaque Agent and Document references
 
 ### Changed
 
