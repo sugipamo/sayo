@@ -163,6 +163,7 @@ Reference metadata is available to the Rust Host through `Term::external`. IDs a
 The Host owns lookup, reference validation, and blob immutability. Schemas and source Space checkers cannot construct
 external Terms. Combined `{}`/`<>` syntax and reference-identity operations are deferred. See
 [External References](external-boundary.md) for the complete prototype contract and executable mock Host example.
+The optional [native Host](host-effects.md) executes registered real operations at this boundary.
 
 ## 3. Space
 

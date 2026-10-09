@@ -62,6 +62,18 @@ const samples = {
     },
     directories: ["Ask/Agent/WithAgent", "WithAgent/Document/Request", "Request"],
   },
+  host: {
+    label: "Host effects · requests only",
+    entry: "main.sayo",
+    files: {
+      "main.sayo": "send Service<handle:clock> Data<blob:empty>\nsend Service<handle:random> Data<blob:random-size>\nsend Service<handle:notice> Data<blob:message>",
+      "Service/space.sayo": 'equal-to "service" %0',
+      "Data/space.sayo": 'equal-to "data" %0',
+      "Send/space.sayo": 'equal-to "send" %0',
+      "Request/template.sayo": "CheckSpace{%0, Service} CheckSpace{%1, Data}",
+    },
+    directories: ["Send/Service/WithService", "WithService/Data/Request"],
+  },
   trap: {
     label: "Trap · division by zero",
     entry: "main.sayo",

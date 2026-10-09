@@ -1,0 +1,3 @@
+Request{Service<handle:clock>, Data<blob:empty>}
+Request{Service<handle:random>, Data<blob:random-size>}
+Request{Service<handle:notice>, Data<blob:message>}

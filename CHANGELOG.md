@@ -10,6 +10,9 @@ User-visible changes to Sayo are recorded here.
 - Host inspection of semantic payloads and pure reevaluation of retained Terms with fixed responses
 - A deterministic Host roundtrip example, with no Agent integration or automatic external dispatch
 - A Playground example that builds a Request from opaque Agent and Document references
+- Optional `host-effects` library and `sayo-host` CLI for registered file, HTTP, clock, OS random, and notification operations
+- Fixed success/failure observations, sequential Host intervals, bounded dispatch, and in-memory Request occurrence replay
+- A Playground sample for constructing native Host Requests without executing them in the browser
 
 ### Changed
 

@@ -100,6 +100,10 @@ moving state between Runtime instances is deferred. A saved handle alone is not 
 
 ## Deferred policy
 
+Files, HTTP, time, randomness, and notifications can now be executed through the optional
+[native Host](host-effects.md). It dispatches registered operations sequentially and records each Request occurrence
+to avoid executing it again. Like this page's Agent/Document mock, its dispatch policy remains outside the evaluator.
+
 The mock services one Request occurrence exactly once and inserts its response at an explicit position. This is a test
 Host's policy, not an automatic language rule. Equal reference IDs or Request contents do not deduplicate occurrences.
 Scheduler order does not prescribe Host dispatch order.

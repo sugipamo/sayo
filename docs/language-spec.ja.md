@@ -164,6 +164,7 @@ Rust Host は `Term::external` から参照種別と ID を取得できる。ID 
 lookup、参照の検証、blob の不変性は Host の責務である。schema とソースの Space checker では外部 Term を
 構築できない。`{}` と `<>` の併用構文と参照同一性の操作は保留とする。
 詳細な試作仕様と実行可能な mock Host は [外部参照](external-boundary.ja.md) を参照。
+任意の [ネイティブ Host](host-effects.ja.md) は、登録された実際の操作をこの境界で実行できる。
 
 ## 3. Space
 

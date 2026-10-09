@@ -2,6 +2,8 @@ mod arity;
 pub mod check;
 pub mod error;
 pub mod external;
+#[cfg(all(feature = "host-effects", not(target_arch = "wasm32")))]
+pub mod host;
 pub mod model;
 pub mod parser;
 pub mod runtime;

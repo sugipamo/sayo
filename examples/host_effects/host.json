@@ -1,0 +1,12 @@
+{
+  "blobs": {
+    "empty": "",
+    "random-size": "{\"bytes\":16}",
+    "message": "Hello from the Sayo Host!\n"
+  },
+  "services": {
+    "clock": { "kind": "clock" },
+    "random": { "kind": "random" },
+    "notice": { "kind": "notify" }
+  }
+}

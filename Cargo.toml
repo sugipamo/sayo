@@ -35,14 +35,26 @@ include = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[features]
+host-effects = ["dep:reqwest", "dep:getrandom"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "native-tls"], optional = true }
+getrandom = { version = "0.3", optional = true }
+
 [lib]
 name = "sayo"
 path = "src/lib.rs"
 crate-type = ["rlib", "cdylib"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2"
+wasm-bindgen = "=0.2.126"
 
 [[bin]]
 name = "sayo"
 path = "src/main.rs"
+
+[[bin]]
+name = "sayo-host"
+path = "src/host_main.rs"
+required-features = ["host-effects"]
