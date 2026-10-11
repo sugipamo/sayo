@@ -13,6 +13,8 @@ User-visible changes to Sayo are recorded here.
 - Optional `host-effects` library and `sayo-host` CLI for registered file, HTTP, clock, OS random, and notification operations
 - Fixed success/failure observations, sequential Host intervals, bounded dispatch, and in-memory Request occurrence replay
 - A Playground sample for constructing native Host Requests without executing them in the browser
+- Opt-in HTTP status/outcome Terms with opaque response bodies, including non-2xx bodies
+- A local file → HTTP → new file example with Sayo failure branches and a loopback test server
 
 ### Changed
 

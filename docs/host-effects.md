@@ -54,6 +54,32 @@ Input blobs cannot choose URLs, file paths, methods, headers, notification sinks
 defines permission. File readers follow symlinks to regular files. Registered paths are trusted Host configuration;
 this does not implement a filesystem sandbox.
 
+## Structured HTTP metadata
+
+Set `"response_metadata": true` on an HTTP service to expose fixed status and outcome Terms. Omitting it retains
+the existing `Succeeded{Data<...>}` / `Failed{Data<...>}` envelope. Embedders opt in with
+`register_http_response_with_headers`.
+
+```json
+{"kind":"http","method":"POST","url":"http://127.0.0.1:8080/sample","response_metadata":true}
+```
+
+```sayo
+HttpResponse{HttpStatus{201}, Succeeded{Data<blob:body>}}
+HttpResponse{HttpStatus{503}, Failed{Data<blob:body>}}
+HttpResponse{NoHttpStatus{}, Failed{Data<blob:diagnostic>}}
+```
+
+When body reading completes, 2xx produces `Succeeded` and non-2xx produces `Failed`; both keep the actual bytes in
+a fresh blob. Only the status integer and outcome classification become semantic Terms inside `{}`. Bodies are
+never parsed as Sayo or JSON. Failure before receiving a status produces `NoHttpStatus{}`. Body-read/size failures
+retain the received status but replace the body with diagnostic JSON. `EffectObservation::http_status` also exposes
+received status. Redirects are not followed and the HTTP client's automatic retries are explicitly disabled.
+
+`effect_world()` declares these envelopes and validates integer status. A custom World must provide corresponding
+declarations. The [file → HTTP → new file example](../examples/file_http_pipeline/README.md) writes continuation and
+failure behavior in Sayo Relations and runs against a loopback-only test server.
+
 ## Configuration
 
 ```json
@@ -92,7 +118,8 @@ HTTP inherits proxy and CA configuration and keeps TLS verification enabled.
   observation without another operation. Distinct occurrences with identical handles/blobs remain separate operations.
 - Blob IDs can be inserted only once. Original bytes never change. Replaying response Terms through
   `Runtime::evaluate_terms` does not execute external operations.
-- Failure blobs contain JSON with `code`, `message`, and `effects_may_have_occurred`. HTTP timeouts and partial writes
+- Diagnostic failure blobs contain JSON with `code`, `message`, and `effects_may_have_occurred`. With structured HTTP,
+  a fully read non-2xx body is itself the failure blob. HTTP timeouts and partial writes
   do not establish that nothing happened externally. There is no automatic retry or rollback.
 - Host limits or a failing later pure interval do not undo earlier operations. Embedders can inspect completed
   observations with `host.observations()` after `run` fails.

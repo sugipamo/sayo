@@ -1,0 +1,1 @@
+{"message":"Sayo local sample","value":7}

@@ -41,6 +41,8 @@ capture と `template.sayo` による payload の Space 検証を持ちます。
 
 ## 登録できる操作
 
+以下は既定の応答形式です。HTTP の構造化メタデータは次節で明示的に有効にします。
+
 | `kind` | 入力 blob | 成功時の出力 blob |
 | --- | --- | --- |
 | `read-file` | 空 | 登録した通常ファイルのバイト列 |
@@ -54,6 +56,32 @@ HTTP の method は GET、HEAD、POST、PUT、PATCH、DELETE に対応します�
 redirect は追いません。リクエストごとの URL、ファイルパス、method、header、通知先は入力 blob から
 指定できません。Host の登録が権限を決めます。読み取り先の通常ファイルに向く symlink は追います。
 登録パス自体は Host が管理する信頼された設定であり、ファイルシステム sandbox を提供するものではありません。
+
+## HTTP の構造化メタデータ
+
+HTTP 登録で `"response_metadata": true` を指定すると、固定応答に status と outcome を明示的に渡します。
+省略時は従来の `Succeeded{Data<...>}`／`Failed{Data<...>}` の形式を保持します。
+組み込み API では `register_http_response_with_headers` で有効にします。
+
+```json
+{"kind":"http","method":"POST","url":"http://127.0.0.1:8080/sample","response_metadata":true}
+```
+
+```sayo
+HttpResponse{HttpStatus{201}, Succeeded{Data<blob:body>}}
+HttpResponse{HttpStatus{503}, Failed{Data<blob:body>}}
+HttpResponse{NoHttpStatus{}, Failed{Data<blob:diagnostic>}}
+```
+
+本文の読取が完了すれば、2xx は `Succeeded`、非2xx は `Failed` とし、どちらの本文もそのまま新しい blob に
+保存します。status の整数と成功・失敗の外形だけが `{}` 内の Sayo Term です。本文を式や JSON として解釈しません。
+HTTP status を受信する前の失敗は `NoHttpStatus{}` になります。本文の読取・サイズ制限による失敗では、
+受信済み status を保持して、本文の代わりに診断 JSON の blob を返します。`EffectObservation::http_status` からも
+受信済み status を取得できます。redirect を追わず、HTTP client の自動 retry も明示的に無効にします。
+
+`effect_world()` はこれらの envelope と status の整数検証を宣言します。独自 World では対応する宣言を
+用意してください。実用的な [ファイル → HTTP → 新規ファイルの例](../examples/file_http_pipeline/README.ja.md) は、
+成功時の次の Request と失敗時の終了を World に記述し、ローカルサーバーで検証できます。
 
 ## Host 設定
 
@@ -97,7 +125,8 @@ redirect は追いません。リクエストごとの URL、ファイルパス�
   実行しません。同じ handle／blob を持つ別の出現は別の操作です。
 - blob の ID は Host 内で一度だけ登録でき、元の内容は変更されません。返された固定応答を
   `Runtime::evaluate_terms` で replay しても、外部処理は実行しません。
-- 失敗の blob は `code`、`message`、`effects_may_have_occurred` を持つ JSON です。HTTP timeout や
+- 診断用の失敗 blob は `code`、`message`、`effects_may_have_occurred` を持つ JSON です。
+  構造化 HTTP の非2xx応答では、読取が完了した本文自体が失敗 blob です。HTTP timeout や
   部分的な書き込みは、外部で何も起きなかったことを保証しません。自動 retry や rollback はしません。
 - Host の上限や後続の純粋評価が失敗しても、それまでの操作は取り消されません。組み込み API の
   `host.observations()` から完了済みの観測を調べられます。

@@ -37,6 +37,8 @@ enum ServiceConfiguration {
         method: String,
         #[serde(default)]
         headers: BTreeMap<String, HeaderConfiguration>,
+        #[serde(default)]
+        response_metadata: bool,
     },
     Clock,
     Random,
@@ -81,7 +83,7 @@ fn run() -> Result<()> {
                     "Usage: sayo-host --config HOST.json [--world PATH] [--export-blobs PATH] FILE.sayo"
                 );
                 println!(
-                    "Without --world, use the built-in user World for Request, Service, Data, Succeeded, and Failed."
+                    "Without --world, use the built-in user World for Request, Service, Data, Succeeded, Failed, and HTTP metadata."
                 );
                 return Ok(());
             }
@@ -131,6 +133,7 @@ fn run() -> Result<()> {
                 method,
                 url,
                 headers,
+                response_metadata,
             } => {
                 let mut resolved = BTreeMap::new();
                 for (name, value) in headers {
@@ -145,7 +148,11 @@ fn run() -> Result<()> {
                     };
                     resolved.insert(name, value);
                 }
-                host.register_http_with_headers(&id, &method, &url, resolved)?;
+                if response_metadata {
+                    host.register_http_response_with_headers(&id, &method, &url, resolved)?;
+                } else {
+                    host.register_http_with_headers(&id, &method, &url, resolved)?;
+                }
             }
             ServiceConfiguration::Clock => host.register_clock(&id)?,
             ServiceConfiguration::Random => host.register_random(&id)?,

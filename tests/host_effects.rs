@@ -588,3 +588,242 @@ fn native_cli_runs_the_checked_in_example_and_exports_binary_observations() {
             .any(|file| fs::read(file.path()).unwrap().len() == 16)
     );
 }
+
+#[test]
+fn structured_http_preserves_binary_failure_body_and_replays_without_io() {
+    let body = b"Failed{not Sayo}\0\xff";
+    let response = [
+        format!(
+            "HTTP/1.1 503 Unavailable\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .as_bytes(),
+        body,
+    ]
+    .concat();
+    let (url, server) = server(response, Duration::ZERO);
+    let runtime = runtime();
+    let mut host = host();
+    host.insert_blob("input", b"sample".to_vec()).unwrap();
+    host.register_http_response_with_headers("web", "POST", &url, Default::default())
+        .unwrap();
+    let request = request(&runtime, "web", "input");
+    let result = host.execute(&runtime, &request).unwrap();
+    assert!(!result.succeeded);
+    assert_eq!(result.http_status, Some(503));
+    assert_eq!(host.blob(&result.output).unwrap(), body);
+    let expected = format!(
+        "HttpResponse{{HttpStatus{{503}}, Failed{{Data<{}>}}}}",
+        result.output.render_source()
+    );
+    assert_eq!(
+        runtime.display_normal_form(&result.response).unwrap(),
+        expected
+    );
+    assert!(server.join().unwrap().ends_with(b"sample"));
+    assert_eq!(
+        host.execute(&runtime, &request).unwrap().output,
+        result.output
+    );
+    let replay = runtime
+        .evaluate_terms(result.response.into_terms())
+        .unwrap();
+    assert_eq!(runtime.display_normal_form(&replay).unwrap(), expected);
+    assert_eq!(host.observations().count(), 1);
+}
+
+#[test]
+fn structured_http_reports_status_availability_for_body_and_transport_failures() {
+    for (response, delay, status, code) in [
+        (
+            [
+                b"HTTP/1.1 200 OK\r\nContent-Length: 1025\r\nConnection: close\r\n\r\n".as_slice(),
+                &vec![0; 1025],
+            ]
+            .concat(),
+            Duration::ZERO,
+            Some(200),
+            "size_limit",
+        ),
+        (
+            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(),
+            Duration::from_millis(200),
+            None,
+            "http_transport",
+        ),
+    ] {
+        let (url, server) = server(response, delay);
+        let runtime = runtime();
+        let mut host = EffectHost::new(HostLimits {
+            max_blob_bytes: 1024,
+            http_timeout_ms: if status.is_some() { 5000 } else { 50 },
+            ..HostLimits::default()
+        })
+        .unwrap();
+        host.insert_blob("empty", vec![]).unwrap();
+        host.register_http_response_with_headers("web", "GET", &url, Default::default())
+            .unwrap();
+        let request = request(&runtime, "web", "empty");
+        let result = host.execute(&runtime, &request).unwrap();
+        assert!(!result.succeeded);
+        assert_eq!(result.http_status, status);
+        let diagnostic: serde_json::Value =
+            serde_json::from_slice(host.blob(&result.output).unwrap()).unwrap();
+        assert_eq!(diagnostic["code"], code);
+        assert_eq!(diagnostic["effects_may_have_occurred"], true);
+        let displayed = runtime.display_normal_form(&result.response).unwrap();
+        assert!(displayed.contains("Failed{"));
+        assert!(displayed.contains(if status.is_some() {
+            "HttpStatus{200}"
+        } else {
+            "NoHttpStatus{}"
+        }));
+        assert_eq!(
+            host.execute(&runtime, &request).unwrap().output,
+            result.output
+        );
+        server.join().unwrap();
+    }
+}
+
+#[test]
+fn structured_http_checks_metadata_world_before_sending() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut world = effect_world().unwrap();
+    world
+        .insert_file("HttpStatus/template.sayo", "CheckSpace{%0, String}")
+        .unwrap();
+    let runtime = Runtime::from_memory_world(world, RuntimeLimits::default()).unwrap();
+    let mut host = host();
+    host.insert_blob("empty", vec![]).unwrap();
+    host.register_http_response_with_headers(
+        "web",
+        "GET",
+        &format!("http://{}/sample", listener.local_addr().unwrap()),
+        Default::default(),
+    )
+    .unwrap();
+    let request = request(&runtime, "web", "empty");
+    assert!(host.execute(&runtime, &request).is_err());
+    assert!(host.execute(&runtime, &request).is_err());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+}
+
+fn pipeline(directory: &Directory, url: &str) -> std::process::Output {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/file_http_pipeline");
+    let config = serde_json::json!({
+        "blobs": {"empty": ""},
+        "services": {
+            "reader": {"kind": "read-file", "path": "input"},
+            "web": {"kind": "http", "method": "POST", "url": url, "response_metadata": true},
+            "writer": {"kind": "write-file", "path": "output"}
+        }
+    });
+    fs::write(
+        directory.0.join("host.json"),
+        serde_json::to_vec(&config).unwrap(),
+    )
+    .unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_sayo-host"))
+        .arg("--config")
+        .arg(directory.0.join("host.json"))
+        .arg("--world")
+        .arg(root.join("world"))
+        .arg("--export-blobs")
+        .arg(directory.0.join("blobs"))
+        .arg(root.join("main.sayo"))
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
+}
+
+#[test]
+fn pipeline_cli_saves_only_success_bodies_and_stops_on_http_failure() {
+    let input = b"synthetic request\0\xff";
+    let body = b"synthetic response\0\xfe";
+    for status in [201, 503, 302] {
+        let directory = Directory::new();
+        fs::write(directory.0.join("input"), input).unwrap();
+        let response = [
+            format!(
+                "HTTP/1.1 {status} Sample\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .as_bytes(),
+            body,
+        ]
+        .concat();
+        let (url, server) = server(response, Duration::ZERO);
+        let output = pipeline(&directory, &url);
+        assert!(server.join().unwrap().ends_with(input));
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            stdout.contains(&format!("HttpStatus{{{status}}}")),
+            "{stdout}"
+        );
+        if status == 201 {
+            assert!(stdout.starts_with("Saved{Data<blob:"), "{stdout}");
+            assert_eq!(fs::read(directory.0.join("output")).unwrap(), body);
+            assert!(String::from_utf8_lossy(&output.stderr).contains("3 observation(s), 0 failed"));
+        } else {
+            assert!(stdout.starts_with("HttpFailed{Data<blob:"), "{stdout}");
+            assert!(!directory.0.join("output").exists());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("2 observation(s), 1 failed"));
+            assert!(
+                fs::read_dir(directory.0.join("blobs"))
+                    .unwrap()
+                    .any(|entry| fs::read(entry.unwrap().path()).unwrap() == body)
+            );
+        }
+    }
+}
+
+#[test]
+fn pipeline_read_failure_makes_no_http_request_or_output_file() {
+    let directory = Directory::new();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let output = pipeline(
+        &directory,
+        &format!("http://{}/sample", listener.local_addr().unwrap()),
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).starts_with("ReadFailed{Data<blob:"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("1 observation(s), 1 failed"));
+    assert!(!directory.0.join("output").exists());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+}
+
+#[test]
+fn pipeline_save_failure_preserves_existing_file_without_retrying_http() {
+    let directory = Directory::new();
+    fs::write(directory.0.join("input"), b"synthetic request").unwrap();
+    fs::write(directory.0.join("output"), b"keep original").unwrap();
+    let (url, server) = server(
+        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nnew".to_vec(),
+        Duration::ZERO,
+    );
+    let output = pipeline(&directory, &url);
+    assert!(server.join().unwrap().ends_with(b"synthetic request"));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("SaveFailed{Data<blob:"), "{stdout}");
+    assert!(stdout.contains("HttpStatus{200}"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("3 observation(s), 1 failed"));
+    assert_eq!(
+        fs::read(directory.0.join("output")).unwrap(),
+        b"keep original"
+    );
+}

@@ -42,6 +42,7 @@ enum Service {
         client: reqwest::blocking::Client,
         url: reqwest::Url,
         method: reqwest::Method,
+        response_metadata: bool,
     },
     Clock,
     Random,
@@ -55,6 +56,8 @@ pub struct EffectObservation {
     pub response: NormalForm,
     pub output: ExternalReference,
     pub succeeded: bool,
+    /// Status received from HTTP, including when reading its body failed.
+    pub http_status: Option<u16>,
 }
 
 #[derive(Debug)]
@@ -162,6 +165,29 @@ impl EffectHost {
         url: &str,
         headers: BTreeMap<String, String>,
     ) -> Result<()> {
+        self.register_http_impl(id, method, url, headers, false)
+    }
+
+    /// Preserve even non-2xx bodies and expose status and outcome as Sayo Terms.
+    /// Transport/read failures retain a diagnostic blob instead of a body.
+    pub fn register_http_response_with_headers(
+        &mut self,
+        id: &str,
+        method: &str,
+        url: &str,
+        headers: BTreeMap<String, String>,
+    ) -> Result<()> {
+        self.register_http_impl(id, method, url, headers, true)
+    }
+
+    fn register_http_impl(
+        &mut self,
+        id: &str,
+        method: &str,
+        url: &str,
+        headers: BTreeMap<String, String>,
+        response_metadata: bool,
+    ) -> Result<()> {
         let url = reqwest::Url::parse(url).map_err(|_| Error::Usage("invalid HTTP URL".into()))?;
         if !matches!(url.scheme(), "http" | "https")
             || !url.username().is_empty()
@@ -193,6 +219,7 @@ impl EffectHost {
             .default_headers(defaults)
             .timeout(Duration::from_millis(self.limits.http_timeout_ms))
             .redirect(reqwest::redirect::Policy::none())
+            .retry(reqwest::retry::never())
             .build()
             .map_err(|_| Error::Usage("could not initialize HTTP client".into()))?;
         self.register(
@@ -201,6 +228,7 @@ impl EffectHost {
                 client,
                 url,
                 method,
+                response_metadata,
             },
         )
     }
@@ -297,29 +325,70 @@ impl EffectHost {
         // expected. These placeholders are never dispatched by the evaluator.
         runtime.evaluate(&format!("Succeeded{{Data<blob:{id}>}}"))?;
         runtime.evaluate(&format!("Failed{{Data<blob:{id}>}}"))?;
-        let outcome = self.dispatch(payload.as_deref());
-        let succeeded = outcome.is_ok();
-        let bytes = match outcome {
-            Ok(bytes) => bytes,
-            Err(failure) => serde_json::to_vec(&serde_json::json!({
-                "code": failure.code,
-                "message": failure.message.chars().take(128).collect::<String>(),
-                "effects_may_have_occurred": failure.effects_may_have_occurred,
-            }))
-            .expect("failure JSON"),
+        let response_metadata = payload
+            .as_deref()
+            .and_then(|terms| terms.first())
+            .and_then(|term| external_reference(term, "Service", ExternalKind::Handle).ok())
+            .and_then(|reference| self.services.get(reference.id()))
+            .is_some_and(|service| {
+                matches!(
+                    service,
+                    Service::Http {
+                        response_metadata: true,
+                        ..
+                    }
+                )
+            });
+        if response_metadata {
+            runtime.evaluate(&format!(
+                "HttpResponse{{HttpStatus{{200}}, Succeeded{{Data<blob:{id}>}}}}"
+            ))?;
+            runtime.evaluate(&format!(
+                "HttpResponse{{NoHttpStatus{{}}, Failed{{Data<blob:{id}>}}}}"
+            ))?;
+            runtime.evaluate(&format!(
+                "HttpResponse{{HttpStatus{{503}}, Failed{{Data<blob:{id}>}}}}"
+            ))?;
+        }
+        let mut http_status = None;
+        let outcome = self.dispatch(payload.as_deref(), &mut http_status);
+        let (succeeded, bytes) = match outcome {
+            Ok(output) => (output.succeeded, output.bytes),
+            Err(failure) => (
+                false,
+                serde_json::to_vec(&serde_json::json!({
+                    "code": failure.code,
+                    "message": failure.message.chars().take(128).collect::<String>(),
+                    "effects_may_have_occurred": failure.effects_may_have_occurred,
+                }))
+                .expect("failure JSON"),
+            ),
         };
         let output = self.insert_blob(id, bytes)?;
         let role = if succeeded { "Succeeded" } else { "Failed" };
-        let response = runtime.evaluate(&format!("{role}{{Data<{}>}}", output.render_source()))?;
+        let mut source = format!("{role}{{Data<{}>}}", output.render_source());
+        if response_metadata {
+            let status = match http_status {
+                Some(status) => format!("HttpStatus{{{status}}}"),
+                None => "NoHttpStatus{}".into(),
+            };
+            source = format!("HttpResponse{{{status}, {source}}}");
+        }
+        let response = runtime.evaluate(&source)?;
         Ok(EffectObservation {
             request: request.clone(),
             response,
             output,
             succeeded,
+            http_status,
         })
     }
 
-    fn dispatch(&mut self, payload: Option<&[Term]>) -> std::result::Result<Vec<u8>, Failure> {
+    fn dispatch(
+        &mut self,
+        payload: Option<&[Term]>,
+        http_status: &mut Option<u16>,
+    ) -> std::result::Result<DispatchOutput, Failure> {
         let Some([service, data]) = payload else {
             return Err(Failure::new(
                 "invalid_request",
@@ -349,7 +418,7 @@ impl EffectHost {
                     ));
                 }
                 let file = std::fs::File::open(path).map_err(|e| Failure::io(e, true))?;
-                read_bounded(file, max_bytes, true)
+                read_bounded(file, max_bytes, true).map(DispatchOutput::success)
             }
             Service::WriteNewFile(path) => {
                 let mut file = std::fs::OpenOptions::new()
@@ -360,12 +429,15 @@ impl EffectHost {
                 file.write_all(input)
                     .and_then(|()| file.flush())
                     .map_err(|e| Failure::io(e, true))?;
-                Ok(serde_json::to_vec(&serde_json::json!({"bytes_written": input.len()})).unwrap())
+                Ok(DispatchOutput::success(
+                    serde_json::to_vec(&serde_json::json!({"bytes_written": input.len()})).unwrap(),
+                ))
             }
             Service::Http {
                 client,
                 url,
                 method,
+                response_metadata,
             } => {
                 if matches!(*method, reqwest::Method::GET | reqwest::Method::HEAD) {
                     empty_input(input)?;
@@ -377,14 +449,19 @@ impl EffectHost {
                 let response = request.send().map_err(|_| {
                     Failure::new("http_transport", "HTTP exchange failed or timed out", true)
                 })?;
-                if !response.status().is_success() {
+                *http_status = Some(response.status().as_u16());
+                let succeeded = response.status().is_success();
+                if !succeeded && !*response_metadata {
                     return Err(Failure::new(
                         "http_status",
                         format!("HTTP status {}", response.status().as_u16()),
                         true,
                     ));
                 }
-                read_bounded(response, max_bytes, true)
+                Ok(DispatchOutput {
+                    bytes: read_bounded(response, max_bytes, true)?,
+                    succeeded,
+                })
             }
             Service::Clock => {
                 empty_input(input)?;
@@ -394,7 +471,9 @@ impl EffectHost {
                 let millis = u64::try_from(elapsed.as_millis()).map_err(|_| {
                     Failure::new("clock", "system time is outside supported range", false)
                 })?;
-                Ok(serde_json::to_vec(&serde_json::json!({"unix_ms": millis})).unwrap())
+                Ok(DispatchOutput::success(
+                    serde_json::to_vec(&serde_json::json!({"unix_ms": millis})).unwrap(),
+                ))
             }
             Service::Random => {
                 #[derive(Deserialize)]
@@ -419,13 +498,15 @@ impl EffectHost {
                 let mut bytes = vec![0; parameters.bytes];
                 getrandom::fill(&mut bytes)
                     .map_err(|_| Failure::new("random", "system random source failed", true))?;
-                Ok(bytes)
+                Ok(DispatchOutput::success(bytes))
             }
             Service::Notify(sink) => {
                 sink.write_all(input)
                     .and_then(|()| sink.flush())
                     .map_err(|e| Failure::io(e, true))?;
-                Ok(serde_json::to_vec(&serde_json::json!({"bytes_written": input.len()})).unwrap())
+                Ok(DispatchOutput::success(
+                    serde_json::to_vec(&serde_json::json!({"bytes_written": input.len()})).unwrap(),
+                ))
             }
         }
     }
@@ -490,6 +571,12 @@ pub fn effect_world() -> Result<MemoryWorld> {
         ),
         ("Succeeded/template.sayo", "CheckSpace{%0, Data}"),
         ("Failed/template.sayo", "CheckSpace{%0, Data}"),
+        ("Status/space.sayo", "equal-to \"http-status\" %0"),
+        ("HttpStatus/template.sayo", "CheckSpace{%0, Int}"),
+        ("NoHttpStatus/template.sayo", "Pass{}"),
+        ("NoHttpStatus/space.sayo", "equal-to \"no-http-status\" %0"),
+        ("ReceiveHttp/space.sayo", "equal-to \"receive-http\" %0"),
+        ("HttpResponse/template.sayo", "Pass{}"),
     ] {
         world.insert_file(path, source)?;
     }
@@ -498,10 +585,29 @@ pub fn effect_world() -> Result<MemoryWorld> {
         "WithService/Data/Request",
         "Succeed/Data/Succeeded",
         "Fail/Data/Failed",
+        "Status/.any/HttpStatus",
+        "ReceiveHttp/HttpStatus/WithHttpStatus",
+        "ReceiveHttp/NoHttpStatus/WithHttpStatus",
+        "WithHttpStatus/Succeeded/HttpResponse",
+        "WithHttpStatus/Failed/HttpResponse",
     ] {
         world.create_dir(path)?;
     }
     Ok(world)
+}
+
+struct DispatchOutput {
+    bytes: Vec<u8>,
+    succeeded: bool,
+}
+
+impl DispatchOutput {
+    fn success(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes,
+            succeeded: true,
+        }
+    }
 }
 
 struct Failure {
